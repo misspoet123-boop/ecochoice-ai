@@ -7,12 +7,9 @@ import {
 } from '../types';
 import { INITIAL_PRODUCTS } from '../data/mockProducts';
 
-// Live Render Backend URL with local fallback
-const RENDER_BACKEND_URL = 'https://ecolens-server-rjkw.onrender.com';
-const API_BASE_URL =
-  typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('localhost')
-    ? window.location.origin
-    : RENDER_BACKEND_URL;
+// Live Production Render Backend URL
+export const RENDER_BACKEND_URL = 'https://ecolens-server-rjkw.onrender.com';
+export const API_BASE_URL = RENDER_BACKEND_URL;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRIMARY: Gemini Search-Grounded Product Analysis (structured JSON schema)
