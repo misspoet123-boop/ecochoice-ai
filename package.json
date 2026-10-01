@@ -8,11 +8,14 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "dev": "expo start",
-    "server": "tsx server.ts"
+    "server": "tsx server.ts",
+    "start:server": "tsx server.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
     "dotenv": "^17.2.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
     "expo": "~52.0.0",
     "expo-camera": "~16.0.0",
     "expo-constants": "~17.0.0",
