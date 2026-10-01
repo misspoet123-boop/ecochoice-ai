@@ -1,0 +1,6 @@
+# Project Conventions & User Directives
+
+- **Mobile Phone-First Architecture**: EcoLens is primarily designed for mobile phone use. Every screen, dialog, overlay, sheet, button, and tray MUST be strictly optimized for smartphone viewports (`max-w-md mx-auto`), mobile touch targets (min 44px), and native mobile ergonomics. Do NOT default to desktop-only full-screen layouts.
+- **Pure Light Theme**: The application strictly employs a clean, high-contrast, light eco-themed aesthetic (crisp white containers, soft slate backgrounds, emerald and pink accents). Never introduce pitch-black dark theme modals or screens.
+- **Mathematical Alignment**: All cards, catalog grids, and status trays must maintain identical vertical and horizontal baselines with standardized heights and overflow protection.
+- **Product Photo-Scanning Architecture (NO Barcodes)**: EcoLens NEVER relies on barcode scanning. It takes a photo of the product directly and identifies the product and its packaging/sustainability from the photo alone. All user-facing terminology and prompts must strictly use "Scan", "Photo Scan", or "Camera Scan" — NEVER "barcode", "barcode scanner", or "barcode to scan". All barcode scanning conditions must be removed.

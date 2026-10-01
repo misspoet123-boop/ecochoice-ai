@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "EcoLens",
+    "slug": "ecolens-ai-sustainability",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#f8fafc"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ecolens.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "EcoLens uses your camera to photo scan products and inspect their sustainability and packaging materials in real time.",
+        "NSPhotoLibraryUsageDescription": "EcoLens accesses your photo library to let you select product photos for AI sustainability analysis."
+      }
+    },
+    "android": {
+      "package": "com.ecolens.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow EcoLens to access your camera to photo scan products and evaluate packaging sustainability."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow EcoLens to access your photo gallery to select product packaging images for sustainability audit."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "596194f6-ee78-402f-b5cb-3db255a65987"
+      }
+    },
+    "owner": "misspoet"
+  }
+}
