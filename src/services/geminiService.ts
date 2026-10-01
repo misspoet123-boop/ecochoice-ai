@@ -7,11 +7,12 @@ import {
 } from '../types';
 import { INITIAL_PRODUCTS } from '../data/mockProducts';
 
-// Endpoint can be configured via environment or fallback to proxy/direct API
+// Live Render Backend URL with local fallback
+const RENDER_BACKEND_URL = 'https://ecolens-server-rjkw.onrender.com';
 const API_BASE_URL =
-  typeof window !== 'undefined' && window.location?.origin
+  typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('localhost')
     ? window.location.origin
-    : 'http://localhost:3000';
+    : RENDER_BACKEND_URL;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRIMARY: Gemini Search-Grounded Product Analysis (structured JSON schema)
