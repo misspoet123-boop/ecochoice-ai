@@ -38,6 +38,7 @@ export const COLORS = {
     600: '#db2777',
     700: '#be185d',
     800: '#9d174d',
+    900: '#831843',
   },
   // Moderate Warning Ambers
   amber: {
@@ -50,6 +51,7 @@ export const COLORS = {
     600: '#d97706',
     700: '#b45309',
     800: '#92400e',
+    900: '#78350f',
   },
   // High Impact Alert Roses
   rose: {
@@ -62,6 +64,7 @@ export const COLORS = {
     600: '#e11d48',
     700: '#be123c',
     800: '#9f1239',
+    900: '#881337',
   },
   white: '#ffffff',
   black: '#000000',

@@ -166,48 +166,221 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
   if (unlistedName) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.unlistedCard}>
-          <View style={styles.unlistedIconBox}>
-            <AlertTriangle size={28} color={COLORS.amber[700]} />
-          </View>
-          <Text style={styles.unlistedTitle}>{unlistedName}</Text>
-          <View style={styles.unlistedAlert}>
-            <Text style={styles.unlistedAlertText}>
-              We don&apos;t have this product in our offline catalog yet.
-            </Text>
-          </View>
-          <Text style={styles.unlistedSubtitle}>
-            Tap below to search Google for its packaging, ingredients, and eco impact in real time.
-          </Text>
-
-          <TouchableOpacity
-            onPress={onTriggerLiveSearch}
-            disabled={isLiveSearching}
-            style={styles.unlistedSearchBtn}
-            activeOpacity={0.85}
-          >
-            <Sparkles size={16} color={COLORS.white} />
-            <Text style={styles.unlistedSearchBtnText}>
-              {isLiveSearching ? 'Searching the web...' : 'Search Latest Web Info'}
-            </Text>
-          </TouchableOpacity>
-
+        {/* Top Action Bar */}
+        <View style={styles.topActionBar}>
           <TouchableOpacity
             onPress={onGoHome}
-            style={styles.unlistedBackBtn}
+            style={styles.backButton}
             activeOpacity={0.7}
           >
-            <Text style={styles.unlistedBackBtnText}>Back to Product List</Text>
+            <ArrowLeft size={16} color={COLORS.emerald[800]} strokeWidth={2.4} />
+            <Text style={styles.backButtonText}>Back to Home</Text>
           </TouchableOpacity>
-
-          {/* Show Grounded Results if available */}
-          {liveAuditResult && (
-            <View style={styles.unlistedResultBox}>
-              <Text style={styles.unlistedResultHeader}>Live Web Search Summary</Text>
-              <Text style={styles.unlistedResultText}>{liveAuditResult.text}</Text>
-            </View>
-          )}
         </View>
+
+        {/* Live Grounded Result Display for Photo Scanned Item */}
+        {groundedResult ? (
+          <View style={styles.dashboardHeroCard}>
+            <View
+              style={[
+                styles.trafficLightBanner,
+                { backgroundColor: activeBadge.bg, borderColor: activeBadge.border },
+              ]}
+            >
+              <View style={styles.bannerLeft}>
+                <View style={[styles.trafficLightPill, { backgroundColor: activeBadge.pillBg }]}>
+                  <View style={[styles.trafficLightDot, { backgroundColor: activeBadge.dot }]} />
+                  <Text style={[styles.trafficLightLabel, { color: activeBadge.text }]}>
+                    {activeBadge.label.toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.liveDataPill}>
+                  <Wifi size={9} color={COLORS.emerald[700]} />
+                  <Text style={styles.liveDataPillText}>Live Grounded</Text>
+                </View>
+              </View>
+
+              <View style={styles.bannerRight}>
+                <View style={styles.scoreGaugeContainer}>
+                  <Text style={[styles.scoreGaugeNumber, { color: activeBadge.text }]}>
+                    {activeScore}
+                  </Text>
+                  <Text style={[styles.scoreGaugeTotal, { color: activeBadge.text }]}>/100</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={onRefreshGrounded}
+                  disabled={isGroundedLoading}
+                  style={styles.refreshScoreButton}
+                  activeOpacity={0.7}
+                >
+                  <RefreshCw size={12} color={activeBadge.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={{ paddingVertical: 14 }}>
+              <Text style={styles.heroProductName} numberOfLines={2}>
+                {groundedResult.productName || unlistedName}
+              </Text>
+              <Text style={styles.heroBrandText}>
+                Brand: <Text style={styles.heroBrandBold}>{groundedResult.brand}</Text>
+              </Text>
+            </View>
+
+            {/* 3 Grounded Metrics Cards */}
+            <View style={styles.summaryMetricsGrid}>
+              <View style={styles.metricCard}>
+                <View style={styles.metricCardHeader}>
+                  <View style={[styles.metricIconBox, { backgroundColor: COLORS.emerald[100] }]}>
+                    <TrendingDown size={15} color={COLORS.emerald[700]} />
+                  </View>
+                  <View
+                    style={[
+                      styles.metricStatusDot,
+                      { backgroundColor: levelToColor(groundedResult.scores?.carbon?.level) },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.metricCardTitle}>Carbon Footprint</Text>
+                <Text style={styles.metricCardValue}>
+                  {groundedResult.scores?.carbon?.level || 'N/A'}
+                </Text>
+                <Text style={styles.metricCardDetail} numberOfLines={3}>
+                  {groundedResult.scores?.carbon?.summary || 'Calculated via live web data'}
+                </Text>
+              </View>
+
+              <View style={styles.metricCard}>
+                <View style={styles.metricCardHeader}>
+                  <View style={[styles.metricIconBox, { backgroundColor: COLORS.amber[100] }]}>
+                    <Package size={15} color={COLORS.amber[700]} />
+                  </View>
+                  <View
+                    style={[
+                      styles.metricStatusDot,
+                      { backgroundColor: levelToColor(groundedResult.scores?.packaging?.level) },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.metricCardTitle}>Packaging &amp; Plastic</Text>
+                <Text style={styles.metricCardValue}>
+                  {groundedResult.scores?.packaging?.level || 'N/A'}
+                </Text>
+                <Text style={styles.metricCardDetail} numberOfLines={3}>
+                  {groundedResult.scores?.packaging?.summary || 'Calculated via live web data'}
+                </Text>
+              </View>
+
+              <View style={styles.metricCard}>
+                <View style={styles.metricCardHeader}>
+                  <View style={[styles.metricIconBox, { backgroundColor: COLORS.pink[100] }]}>
+                    <HeartHandshake size={15} color={COLORS.pink[700]} />
+                  </View>
+                  <View
+                    style={[
+                      styles.metricStatusDot,
+                      { backgroundColor: levelToColor(groundedResult.scores?.ethics?.level) },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.metricCardTitle}>Ethical Sourcing</Text>
+                <Text style={styles.metricCardValue}>
+                  {groundedResult.scores?.ethics?.level || 'N/A'}
+                </Text>
+                <Text style={styles.metricCardDetail} numberOfLines={3}>
+                  {groundedResult.scores?.ethics?.summary || 'Calculated via live web data'}
+                </Text>
+              </View>
+            </View>
+
+            {/* AI Analysis Summary */}
+            <View style={styles.analysisCard}>
+              <View style={styles.analysisHeader}>
+                <View style={styles.analysisTitleGroup}>
+                  <View style={styles.analysisIconBox}>
+                    <Sparkles size={16} color={COLORS.emerald[700]} />
+                  </View>
+                  <View>
+                    <Text style={styles.analysisTitle}>AI Sustainability Analysis</Text>
+                    <Text style={styles.analysisTitleSub}>Gemini · Google Search Grounded</Text>
+                  </View>
+                </View>
+                <View style={[styles.unbiasedBadge, styles.unbiasedBadgeLive]}>
+                  <Text style={[styles.unbiasedBadgeText, styles.unbiasedBadgeTextLive]}>
+                    Live Grounded
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.explanationBox}>
+                <Text style={styles.explanationText}>{groundedResult.rawAnalysis}</Text>
+              </View>
+
+              {/* Real Web Sources & Citations */}
+              {groundedResult.sources && groundedResult.sources.length > 0 && (
+                <View style={styles.sourcesSection}>
+                  <Text style={styles.sourcesHeader}>
+                    Web Citations ({groundedResult.sources.length}):
+                  </Text>
+                  <View style={styles.sourcesRow}>
+                    {groundedResult.sources.map((url, idx) => {
+                      const domain = url.replace(/^https?:\/\//, '').split('/')[0];
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => Linking.openURL(url).catch(() => {})}
+                          style={styles.sourceChip}
+                          activeOpacity={0.7}
+                        >
+                          <ExternalLink size={10} color={COLORS.pink[600]} />
+                          <Text style={styles.sourceChipText} numberOfLines={1}>
+                            {domain}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        ) : isGroundedLoading ? (
+          <View style={styles.unlistedCard}>
+            <ScoreBannerSkeleton />
+            <MetricsGridSkeleton />
+            <AnalysisTextSkeleton />
+            <Text style={[styles.unlistedSubtitle, { marginTop: 16, textAlign: 'center' }]}>
+              EcoLens AI is reading label &amp; retrieving live web facts...
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.unlistedCard}>
+            <View style={styles.unlistedIconBox}>
+              <AlertTriangle size={28} color={COLORS.amber[700]} />
+            </View>
+            <Text style={styles.unlistedTitle}>{unlistedName}</Text>
+            <View style={styles.unlistedAlert}>
+              <Text style={styles.unlistedAlertText}>
+                No static catalog data is used. Live web search is ready.
+              </Text>
+            </View>
+            <Text style={styles.unlistedSubtitle}>
+              Tap below to execute a real-time Google Search Grounding audit for this product.
+            </Text>
+
+            <TouchableOpacity
+              onPress={onRefreshGrounded}
+              disabled={isGroundedLoading}
+              style={styles.unlistedSearchBtn}
+              activeOpacity={0.85}
+            >
+              <Sparkles size={16} color={COLORS.white} />
+              <Text style={styles.unlistedSearchBtnText}>
+                {isGroundedLoading ? 'Searching the web...' : 'Retrieve Live Web Data'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     );
   }

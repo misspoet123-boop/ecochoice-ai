@@ -74,11 +74,12 @@ export interface PhotoScanResult {
   sustainabilityFacts: string[];
   suggestedSwapId?: string;
   imageUri?: string;
+  citations?: string[];
 }
 
 /**
  * Structured result from Gemini Search-Grounded product analysis.
- * Returned by /api/analyze-product and analyzeProductGrounded().
+ * Returned by /api/analyze and analyzeProductGrounded().
  */
 export interface GroundedScoreDimension {
   level: 'GREEN' | 'YELLOW' | 'RED';
@@ -96,6 +97,7 @@ export interface GroundedAuditResult {
     ethics: GroundedScoreDimension;
   };
   sources: string[];
+  citations?: string[];
   searchQueries: string[];
   rawAnalysis: string;
   timestamp: string;

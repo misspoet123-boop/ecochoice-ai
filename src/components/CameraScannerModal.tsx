@@ -26,14 +26,15 @@ import {
   ShieldAlert,
 } from 'lucide-react-native';
 import { COLORS, SHADOWS } from '../theme/colors';
-import { INITIAL_PRODUCTS } from '../data/mockProducts';
 import { Product } from '../types';
 import { analyzeProductPhoto } from '../services/geminiService';
 
 interface CameraScannerModalProps {
   visible: boolean;
   onClose: () => void;
-  onProductIdentified: (product: Product | { unlistedName: string }) => void;
+  onProductIdentified: (
+    product: Product | { unlistedName: string; rawAnalysis?: string; brand?: string; photoResult?: any }
+  ) => void;
 }
 
 export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
@@ -124,44 +125,34 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     setFacing((current) => (current === 'back' ? 'front' : 'back'));
   };
 
-  // Process and analyze captured/selected image
+  // Process and analyze captured/selected image using real-time Gemini Vision + Search Grounding
   const processImageAnalysis = async (imageUri: string, base64Data?: string) => {
     setIsScanning(true);
-    setScanningStep('Processing product photo...');
-
-    setTimeout(() => {
-      setScanningStep('Detecting packaging polymers & materials...');
-    }, 450);
-
-    setTimeout(() => {
-      setScanningStep('Auditing CPCB EPR & life-cycle metrics...');
-    }, 900);
+    setScanningStep('EcoLens AI is reading label & retrieving live web facts...');
 
     try {
-      // Call Gemini multimodal analysis
-      const result = await analyzeProductPhoto(imageUri);
+      // Call Gemini multimodal analysis with live Google Search Grounding
+      const result = await analyzeProductPhoto(imageUri, base64Data);
 
       setIsScanning(false);
       setScanningStep('');
       onClose();
 
-      // Find matching item in catalog or create dynamic product result
-      const matched = INITIAL_PRODUCTS.find(
-        (p) =>
-          p.name.toLowerCase().includes(result.productName.toLowerCase()) ||
-          p.brand.toLowerCase().includes(result.brand.toLowerCase())
+      onProductIdentified({
+        unlistedName: result.productName || 'Scanned Retail Product',
+        brand: result.brand,
+        rawAnalysis: result.analysisText,
+        photoResult: result,
+      });
+    } catch (err: any) {
+      setIsScanning(false);
+      setScanningStep('');
+      Alert.alert(
+        'Live Web Audit Error',
+        err.message ||
+          'Unable to retrieve live web data for this product. Please check your connection or try again.',
+        [{ text: 'OK' }]
       );
-
-      if (matched) {
-        onProductIdentified(matched);
-      } else {
-        onProductIdentified({ unlistedName: result.productName || 'Scanned Retail Product' });
-      }
-    } catch (err) {
-      setIsScanning(false);
-      setScanningStep('');
-      onClose();
-      onProductIdentified(INITIAL_PRODUCTS[0]);
     }
   };
 
@@ -171,7 +162,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
     try {
       setIsScanning(true);
-      setScanningStep('Capturing photo from camera...');
+      setScanningStep('EcoLens AI is reading label & retrieving live web facts...');
 
       if (Platform.OS === 'web') {
         // Capture frame from web video
@@ -189,7 +180,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
           }
         }
       } else if (cameraRef.current) {
-        // Native photo capture
+        // Native photo capture with base64 enabled
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.8,
           base64: true,
@@ -200,16 +191,13 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         }
       }
     } catch (err: any) {
-      console.warn('Camera snap error, falling back to smart scan:', err.message);
-    }
-
-    // Fallback simulation if camera snap had issue
-    setTimeout(() => {
       setIsScanning(false);
       setScanningStep('');
-      onClose();
-      onProductIdentified(INITIAL_PRODUCTS[0]);
-    }, 1200);
+      Alert.alert(
+        'Camera Error',
+        'Unable to capture product photo. Please try again or upload an image from gallery.'
+      );
+    }
   };
 
   // Pick Real Photo from Gallery
@@ -229,40 +217,6 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     } catch (err: any) {
       Alert.alert('Gallery Picker', 'Could not open image gallery.');
     }
-  };
-
-  // Fast Simulation Trigger for testing
-  const triggerSimulation = (productId?: string, customName?: string) => {
-    setIsScanning(true);
-    setScanningStep('Capturing high-resolution product photo...');
-
-    setTimeout(() => {
-      setScanningStep('Detecting packaging polymers & materials...');
-    }, 450);
-
-    setTimeout(() => {
-      setScanningStep('Auditing CPCB EPR & life-cycle metrics...');
-    }, 900);
-
-    setTimeout(() => {
-      setIsScanning(false);
-      setScanningStep('');
-      onClose();
-
-      if (productId) {
-        const found = INITIAL_PRODUCTS.find((p) => p.id === productId);
-        if (found) {
-          onProductIdentified(found);
-          return;
-        }
-      }
-
-      if (customName) {
-        onProductIdentified({ unlistedName: customName });
-      } else {
-        onProductIdentified(INITIAL_PRODUCTS[0]);
-      }
-    }, 1400);
   };
 
   const hasCameraPermission = permission?.granted;
@@ -456,110 +410,21 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Quick Simulation Samples Tray */}
+          {/* Real-time Camera Scan Guidance Card */}
           <View style={styles.simulationTray}>
             <View style={styles.trayHeaderRow}>
-              <Text style={styles.trayTitle}>Quick Scan Sample Products:</Text>
+              <Text style={styles.trayTitle}>Real-Time Vision &amp; Web Grounding</Text>
               <View style={styles.instantTag}>
                 <Sparkles size={11} color={COLORS.emerald[700]} />
-                <Text style={styles.instantTagText}>Instant Presets</Text>
+                <Text style={styles.instantTagText}>Live Gemini Engine</Text>
               </View>
             </View>
 
-            <ScrollView
-              contentContainerStyle={styles.samplesGrid}
-              showsVerticalScrollIndicator={false}
-            >
-              <TouchableOpacity
-                onPress={() => triggerSimulation('mamaearth-onion-shampoo')}
-                disabled={isScanning}
-                style={styles.sampleCard}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sampleName} numberOfLines={1}>Mamaearth Shampoo</Text>
-                <View style={styles.sampleBadgeRow}>
-                  <View style={[styles.sampleDot, { backgroundColor: COLORS.amber[500] }]} />
-                  <Text style={[styles.sampleBadgeText, { color: COLORS.amber[700] }]}>
-                    Moderate Impact
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => triggerSimulation('tata-tea-premium')}
-                disabled={isScanning}
-                style={styles.sampleCard}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sampleName} numberOfLines={1}>Tata Tea Premium</Text>
-                <View style={styles.sampleBadgeRow}>
-                  <View style={[styles.sampleDot, { backgroundColor: COLORS.emerald[500] }]} />
-                  <Text style={[styles.sampleBadgeText, { color: COLORS.emerald[700] }]}>
-                    Eco-Positive
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => triggerSimulation('fortune-refined-sunflower-oil')}
-                disabled={isScanning}
-                style={styles.sampleCard}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sampleName} numberOfLines={1}>Fortune Sunlite Oil</Text>
-                <View style={styles.sampleBadgeRow}>
-                  <View style={[styles.sampleDot, { backgroundColor: COLORS.rose[500] }]} />
-                  <Text style={[styles.sampleBadgeText, { color: COLORS.rose[700] }]}>
-                    High Impact
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => triggerSimulation('lays-magic-masala')}
-                disabled={isScanning}
-                style={styles.sampleCard}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sampleName} numberOfLines={1}>Lay&apos;s Magic Masala</Text>
-                <View style={styles.sampleBadgeRow}>
-                  <View style={[styles.sampleDot, { backgroundColor: COLORS.rose[500] }]} />
-                  <Text style={[styles.sampleBadgeText, { color: COLORS.rose[700] }]}>
-                    High Impact
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => triggerSimulation('amul-taaza-toned-milk')}
-                disabled={isScanning}
-                style={styles.sampleCard}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sampleName} numberOfLines={1}>Amul Taaza Milk</Text>
-                <View style={styles.sampleBadgeRow}>
-                  <View style={[styles.sampleDot, { backgroundColor: COLORS.emerald[500] }]} />
-                  <Text style={[styles.sampleBadgeText, { color: COLORS.emerald[700] }]}>
-                    Eco-Positive
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => triggerSimulation(undefined, 'Unlisted Product Photo')}
-                disabled={isScanning}
-                style={styles.sampleCard}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sampleName} numberOfLines={1}>Unlisted New Item</Text>
-                <View style={styles.sampleBadgeRow}>
-                  <View style={[styles.sampleDot, { backgroundColor: COLORS.slate[400] }]} />
-                  <Text style={[styles.sampleBadgeText, { color: COLORS.slate[600] }]}>
-                    Web Grounding
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </ScrollView>
+            <View style={styles.guidanceCard}>
+              <Text style={styles.guidanceText}>
+                Point your camera directly at the product packaging or nutrition label and tap the shutter button. EcoLens will read the packaging material and retrieve live sustainability facts from the web.
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -923,6 +788,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: COLORS.emerald[800],
+  },
+  guidanceCard: {
+    backgroundColor: COLORS.slate[50],
+    borderWidth: 1,
+    borderColor: COLORS.slate[200],
+    borderRadius: 14,
+    padding: 12,
+  },
+  guidanceText: {
+    fontSize: 12,
+    color: COLORS.slate[600],
+    lineHeight: 17,
   },
   samplesGrid: {
     flexDirection: 'row',

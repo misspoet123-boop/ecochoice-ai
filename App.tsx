@@ -140,7 +140,7 @@ export default function App() {
   };
 
   const handleProductIdentifiedFromCamera = (
-    result: Product | { unlistedName: string }
+    result: Product | { unlistedName: string; rawAnalysis?: string; brand?: string; photoResult?: any }
   ) => {
     if (activeTab !== 'prefs') {
       setPreviousTab(activeTab);
@@ -148,8 +148,12 @@ export default function App() {
     if ('id' in result) {
       handleSelectProduct(result.id);
     } else {
-      setUnlistedScannedName(result.unlistedName);
+      const name = result.unlistedName;
+      const brand = result.brand || 'Indian Retail Brand';
+      setUnlistedScannedName(name);
       setActiveTab('audit');
+      // Immediately trigger live Gemini Search Grounding for the scanned product
+      triggerGroundedAnalysis(name, brand, `unlisted-${name}`, true);
     }
   };
 
