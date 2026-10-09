@@ -136,7 +136,7 @@ Respond with ONLY valid JSON. No markdown backticks, no introductory text, no tr
     parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: parts,
       config: {
         tools: [{ googleSearch: {} }],
@@ -258,7 +258,7 @@ Respond ONLY with valid JSON.`;
     parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: parts,
       config: {
         tools: [{ googleSearch: {} }],
@@ -343,7 +343,7 @@ Format response with concise sections:
 - **Traffic-Light Assessment**: State whether overall impact is GREEN, YELLOW, or RED.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],

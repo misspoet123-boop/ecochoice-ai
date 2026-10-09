@@ -18,7 +18,7 @@ export const API_BASE_URL: string =
   !window.location.origin.includes('localhost') &&
   !window.location.origin.includes(':8081')
     ? window.location.origin
-    : 'https://ecolens-server-rjkw.onrender.com');
+    : 'https://ecolens-api-nu.vercel.app');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRIMARY: Gemini Search-Grounded Product Analysis (Strict Real-Time Web Data)
