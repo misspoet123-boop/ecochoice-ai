@@ -24,8 +24,23 @@ export const API_BASE_URL: string =
 // PRIMARY: Gemini Search-Grounded Product Analysis (Strict Real-Time Web Data)
 // ─────────────────────────────────────────────────────────────────────────────
 
+function cleanErrorMessage(rawError: any): string {
+  if (!rawError) return 'Unable to analyze product. Please try again.';
+  const str = typeof rawError === 'string' ? rawError : (rawError.message || JSON.stringify(rawError));
+  try {
+    const parsed = JSON.parse(str);
+    if (parsed?.error?.message) {
+      if (parsed.error.code === 429 || parsed.error.status === 'RESOURCE_EXHAUSTED') {
+        return 'Gemini AI is temporarily busy. Please wait a moment and try again.';
+      }
+      return parsed.error.message;
+    }
+  } catch {}
+  return str;
+}
+
 /**
- * Calls /api/analyze — Gemini Multimodal Vision + Google Search Grounding.
+ * Calls /api/analyze — Gemini Multimodal Vision + Search Grounding.
  * Strictly throws user-friendly error if retrieval fails (zero mock/dummy fallbacks).
  */
 export async function analyzeProductGrounded(
@@ -45,10 +60,7 @@ export async function analyzeProductGrounded(
 
   if (!response.ok) {
     const errJson = await response.json().catch(() => ({}));
-    throw new Error(
-      errJson.error ||
-        'Unable to retrieve live web data for this product. Please check your connection or try again.'
-    );
+    throw new Error(cleanErrorMessage(errJson.error));
   }
 
   const data: GroundedAuditResult = await response.json();
@@ -81,10 +93,7 @@ export async function auditProductLive(
 
   if (!response.ok) {
     const errJson = await response.json().catch(() => ({}));
-    throw new Error(
-      errJson.error ||
-        'Unable to retrieve live web data for this product. Please check your connection or try again.'
-    );
+    throw new Error(cleanErrorMessage(errJson.error));
   }
 
   const data = await response.json();
@@ -122,10 +131,7 @@ export async function analyzeProductPhoto(
 
   if (!response.ok) {
     const errJson = await response.json().catch(() => ({}));
-    throw new Error(
-      errJson.error ||
-        'Unable to retrieve live web data for this product photo. Please try again.'
-    );
+    throw new Error(cleanErrorMessage(errJson.error));
   }
 
   const data = await response.json();
