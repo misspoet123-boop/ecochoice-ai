@@ -72,19 +72,37 @@ function formatCleanErrorMessage(error: any): string {
  * Runs gemini-3.8-flash directly with deep packaging/EPR domain instructions.
  * Responds in 1.5-2.5 seconds with zero search timeout delays!
  */
+const FLASH_MODELS = [
+  'gemini-3.7-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+  'gemini-flash-lite-latest',
+];
+
 async function generateContentWithFallback(
   ai: GoogleGenAI,
   contents: any,
   systemInstruction: string
 ): Promise<{ response: any; usedSearch: boolean }> {
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.8-flash',
-    contents,
-    config: {
-      systemInstruction,
-    },
-  });
-  return { response, usedSearch: false };
+  let lastError: any = null;
+  for (const model of FLASH_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+        },
+      });
+      return { response, usedSearch: false };
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[EcoLens AI] Model ${model} failed, trying next candidate...`);
+    }
+  }
+  throw lastError || new Error('All Gemini Flash candidate models failed.');
 }
 
 /**
