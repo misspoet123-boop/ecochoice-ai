@@ -6,11 +6,12 @@ import {
   Modal,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   Animated,
   Easing,
   Platform,
   Alert,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,13 +22,16 @@ import {
   ZapOff,
   Image as ImageIcon,
   Sparkles,
-  RefreshCw,
   SwitchCamera,
   ShieldAlert,
+  CheckCircle2,
+  RefreshCw,
 } from 'lucide-react-native';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { Product } from '../types';
 import { analyzeProductPhoto } from '../services/geminiService';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface CameraScannerModalProps {
   visible: boolean;
@@ -47,6 +51,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   const [scanningStep, setScanningStep] = useState<string>('');
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
+  const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
 
   const cameraRef = useRef<any>(null);
   const webVideoRef = useRef<any>(null);
@@ -61,13 +66,13 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         Animated.sequence([
           Animated.timing(scanLineAnim, {
             toValue: 1,
-            duration: 2000,
+            duration: 1800,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(scanLineAnim, {
             toValue: 0,
-            duration: 2000,
+            duration: 1800,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           }),
@@ -75,6 +80,10 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       );
       scanLoop.start();
       return () => scanLoop.stop();
+    } else {
+      setCapturedPhotoUri(null);
+      setIsScanning(false);
+      setScanningStep('');
     }
   }, [visible, scanLineAnim]);
 
@@ -112,12 +121,12 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
   const translateY = scanLineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 140],
+    outputRange: [0, 220],
   });
 
   const scanOpacity = scanLineAnim.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [0.6, 1, 0.6],
+    outputRange: [0.5, 1, 0.5],
   });
 
   // Toggle Camera Facing (Front / Back)
@@ -125,17 +134,18 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     setFacing((current) => (current === 'back' ? 'front' : 'back'));
   };
 
-  // Process and analyze captured/selected image using real-time Gemini Vision + Search Grounding
+  // Process and analyze captured/selected image using real-time Gemini Vision
   const processImageAnalysis = async (imageUri: string, base64Data?: string) => {
     setIsScanning(true);
-    setScanningStep('EcoLens AI is reading label & retrieving live web facts...');
+    setCapturedPhotoUri(imageUri);
+    setScanningStep('✓ Photo Captured! Reading label & packaging...');
 
     try {
-      // Call Gemini multimodal analysis with live Google Search Grounding
       const result = await analyzeProductPhoto(imageUri, base64Data);
 
       setIsScanning(false);
       setScanningStep('');
+      setCapturedPhotoUri(null);
       onClose();
 
       onProductIdentified({
@@ -148,10 +158,15 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       setIsScanning(false);
       setScanningStep('');
       Alert.alert(
-        'Live Web Audit Error',
+        'Scan Notice',
         err.message ||
-          'Unable to retrieve live web data for this product. Please check your connection or try again.',
-        [{ text: 'OK' }]
+          'Unable to retrieve live data for this product. Please try again with a clearer photo.',
+        [
+          {
+            text: 'Retake Photo',
+            onPress: () => setCapturedPhotoUri(null),
+          },
+        ]
       );
     }
   };
@@ -161,11 +176,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     if (isScanning) return;
 
     try {
-      setIsScanning(true);
-      setScanningStep('EcoLens AI is reading label & retrieving live web facts...');
-
       if (Platform.OS === 'web') {
-        // Capture frame from web video
         if (webVideoRef.current) {
           const video = webVideoRef.current;
           const canvas = document.createElement('canvas');
@@ -174,28 +185,31 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+            setCapturedPhotoUri(dataUrl);
             await processImageAnalysis(dataUrl, dataUrl);
             return;
           }
         }
       } else if (cameraRef.current) {
-        // Native photo capture with base64 enabled
+        // High-speed, optimized capture with 0.6 quality for instant upload & crisp visual recognition
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
+          quality: 0.6,
           base64: true,
+          skipProcessing: true,
         });
         if (photo?.uri) {
+          setCapturedPhotoUri(photo.uri);
           await processImageAnalysis(photo.uri, photo.base64);
           return;
         }
       }
     } catch (err: any) {
       setIsScanning(false);
-      setScanningStep('');
+      setCapturedPhotoUri(null);
       Alert.alert(
-        'Camera Error',
-        'Unable to capture product photo. Please try again or upload an image from gallery.'
+        'Camera Notice',
+        'Could not capture photo. Please try again or upload an image from your gallery.'
       );
     }
   };
@@ -206,12 +220,13 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.6,
         base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
+        setCapturedPhotoUri(asset.uri);
         await processImageAnalysis(asset.uri, asset.base64 || undefined);
       }
     } catch (err: any) {
@@ -225,207 +240,227 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
+      transparent={false}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          {/* Modal Drag Pill */}
-          <View style={styles.dragPill} />
+      <View style={styles.fullScreenContainer}>
+        {/* Top Floating App Bar */}
+        <View style={styles.topAppBar}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.circleActionButton}
+            activeOpacity={0.7}
+            accessibilityLabel="Close scanner"
+          >
+            <X size={20} color={COLORS.white} />
+          </TouchableOpacity>
 
-          {/* Modal Header */}
-          <View style={styles.modalHeader}>
-            <View style={styles.headerTitleGroup}>
-              <View style={styles.cameraIconBadge}>
-                <Camera size={18} color={COLORS.emerald[700]} strokeWidth={2.4} />
-              </View>
-              <View>
-                <Text style={styles.headerTitle}>Camera Photo Scanner</Text>
-                <Text style={styles.headerSubtitle}>Live Viewfinder &bull; Packaging Sustainability</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeButton}
-              activeOpacity={0.7}
-              accessibilityLabel="Close scanner"
-            >
-              <X size={18} color={COLORS.slate[600]} />
-            </TouchableOpacity>
+          <View style={styles.headerTitleBadge}>
+            <Sparkles size={14} color={COLORS.emerald[400]} />
+            <Text style={styles.headerTitleText}>AI Photo Scanner</Text>
           </View>
 
-          {/* Live Camera Viewfinder Screen */}
-          <View style={styles.viewfinderCanvas}>
-            {/* PERMISSION NOT GRANTED — show only permission prompt, nothing else */}
-            {Platform.OS !== 'web' && !hasCameraPermission ? (
-              <View style={styles.permissionBox}>
-                <View style={styles.permissionIconRing}>
-                  <ShieldAlert size={32} color={COLORS.amber[600]} />
-                </View>
-                <Text style={styles.permissionTitle}>Camera Permission Needed</Text>
-                <Text style={styles.permissionSubtitle}>
-                  EcoLens needs camera access to photo scan product packaging and analyse sustainability.
-                </Text>
-                <TouchableOpacity
-                  onPress={requestPermission}
-                  style={styles.permissionButton}
-                  activeOpacity={0.8}
-                >
-                  <Camera size={16} color={COLORS.white} />
-                  <Text style={styles.permissionButtonText}>Enable Camera Access</Text>
-                </TouchableOpacity>
-                <Text style={styles.permissionHint}>
-                  Or use the Upload button below to scan a saved photo
-                </Text>
-              </View>
-            ) : (
-              /* CAMERA ACTIVE — live feed + overlay frame */
-              <>
-                {Platform.OS === 'web' ? (
-                  <View style={StyleSheet.absoluteFillObject}>
-                    {/* @ts-ignore */}
-                    <video
-                      ref={webVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        display: 'block',
-                      }}
-                    />
-                  </View>
-                ) : (
-                  <CameraView
-                    ref={cameraRef}
-                    style={StyleSheet.absoluteFillObject}
-                    facing={facing}
-                    enableTorch={flashEnabled}
-                  />
-                )}
-
-                {/* Central Scanning Frame Overlay */}
-                <View style={styles.centerFrame}>
-                  <View style={[styles.cornerBracket, styles.bracketTopLeft]} />
-                  <View style={[styles.cornerBracket, styles.bracketTopRight]} />
-                  <View style={[styles.cornerBracket, styles.bracketBottomLeft]} />
-                  <View style={[styles.cornerBracket, styles.bracketBottomRight]} />
-
-                  {/* Animated Laser Sweep */}
-                  <Animated.View
-                    style={[
-                      styles.scanningLaserBeam,
-                      { transform: [{ translateY }], opacity: scanOpacity },
-                    ]}
-                  >
-                    <View style={styles.laserGlow} />
-                  </Animated.View>
-
-                  {/* Guidance / Scanning State */}
-                  {isScanning ? (
-                    <View style={styles.scanningStateBox}>
-                      <ActivityIndicator size="small" color={COLORS.emerald[600]} />
-                      <Text style={styles.scanningStepText}>{scanningStep}</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.guidanceBox}>
-                      <Text style={styles.guidanceTitle}>Align Product in Frame</Text>
-                      <Text style={styles.guidanceSubtitle}>
-                        Point lens at product packaging or label
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Flip Camera Button */}
-                <TouchableOpacity
-                  onPress={toggleCameraFacing}
-                  style={styles.floatingFlipButton}
-                  activeOpacity={0.8}
-                  accessibilityLabel="Flip camera"
-                >
-                  <SwitchCamera size={18} color={COLORS.white} />
-                </TouchableOpacity>
-
-                {/* Live Badge */}
-                <View style={styles.cameraFeedBadge}>
-                  <View style={styles.livePulseDot} />
-                  <Text style={styles.cameraFeedText}>Live Lens • AI Powered</Text>
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Bottom Action Controls: Flash Toggle, Shutter, and Upload Photo */}
-          <View style={styles.bottomControlBar}>
-            {/* 1. Flash Toggle Button */}
+          <View style={styles.headerRightActions}>
             <TouchableOpacity
               onPress={() => setFlashEnabled(!flashEnabled)}
-              style={[
-                styles.actionPillButton,
-                flashEnabled && styles.actionPillButtonActive,
-              ]}
-              activeOpacity={0.8}
+              style={styles.circleActionButton}
+              activeOpacity={0.7}
+              accessibilityLabel="Toggle flash"
             >
               {flashEnabled ? (
-                <Zap size={18} color={COLORS.amber[700]} strokeWidth={2.4} />
+                <Zap size={18} color={COLORS.amber[400]} />
               ) : (
-                <ZapOff size={18} color={COLORS.slate[600]} strokeWidth={2.2} />
+                <ZapOff size={18} color={COLORS.white} />
               )}
-              <Text
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={toggleCameraFacing}
+              style={styles.circleActionButton}
+              activeOpacity={0.7}
+              accessibilityLabel="Flip camera"
+            >
+              <SwitchCamera size={18} color={COLORS.white} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Viewfinder Area (Full Available Viewport) */}
+        <View style={styles.viewfinderCanvas}>
+          {Platform.OS !== 'web' && !hasCameraPermission ? (
+            <View style={styles.permissionBox}>
+              <View style={styles.permissionIconRing}>
+                <ShieldAlert size={36} color={COLORS.amber[500]} />
+              </View>
+              <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+              <Text style={styles.permissionSubtitle}>
+                EcoLens needs camera access to photograph product packaging and calculate sustainability scores.
+              </Text>
+              <TouchableOpacity
+                onPress={requestPermission}
+                style={styles.permissionButton}
+                activeOpacity={0.8}
+              >
+                <Camera size={16} color={COLORS.white} />
+                <Text style={styles.permissionButtonText}>Enable Camera Access</Text>
+              </TouchableOpacity>
+            </View>
+          ) : capturedPhotoUri ? (
+            /* REFLECT CAPTURED PHOTO ON SCREEN IMMEDIATELY */
+            <View style={StyleSheet.absoluteFillObject}>
+              <Image
+                source={{ uri: capturedPhotoUri }}
+                style={styles.capturedPhotoPreview}
+                resizeMode="cover"
+              />
+              <View style={styles.darkBackdropOverlay} />
+
+              {/* Scanning Laser Beam over Captured Photo */}
+              <Animated.View
                 style={[
-                  styles.actionPillText,
-                  flashEnabled && styles.actionPillTextActive,
+                  styles.scanningLaserBeam,
+                  { transform: [{ translateY }], opacity: scanOpacity },
                 ]}
               >
-                {flashEnabled ? 'Flash On' : 'Flash'}
-              </Text>
-            </TouchableOpacity>
+                <View style={styles.laserGlow} />
+              </Animated.View>
 
-            {/* 2. Main Center Shutter Trigger */}
-            <TouchableOpacity
-              onPress={handleSnapPhoto}
-              disabled={isScanning}
-              style={styles.shutterButtonOuter}
-              activeOpacity={0.85}
-              accessibilityLabel="Take Photo"
-            >
-              <View style={styles.shutterButtonInner}>
-                <Camera size={24} color={COLORS.white} strokeWidth={2.4} />
-              </View>
-            </TouchableOpacity>
+              {/* Capture Success Badge & Status Overlay */}
+              <View style={styles.captureSuccessOverlay}>
+                <View style={styles.captureSuccessBadge}>
+                  <CheckCircle2 size={20} color={COLORS.emerald[500]} />
+                  <Text style={styles.captureSuccessBadgeText}>
+                    Photo Captured Successfully!
+                  </Text>
+                </View>
 
-            {/* 3. Upload Photo Manually Button */}
-            <TouchableOpacity
-              onPress={handlePickFromGallery}
-              style={styles.actionPillButton}
-              activeOpacity={0.8}
-            >
-              <ImageIcon size={18} color={COLORS.emerald[700]} strokeWidth={2.2} />
-              <Text style={[styles.actionPillText, { color: COLORS.emerald[800] }]}>
-                Upload
-              </Text>
-            </TouchableOpacity>
-          </View>
+                <View style={styles.captureStatusCard}>
+                  <ActivityIndicator size="small" color={COLORS.emerald[600]} />
+                  <Text style={styles.captureStatusText}>
+                    EcoLens AI is reading label & packaging...
+                  </Text>
+                </View>
 
-          {/* Real-time Camera Scan Guidance Card */}
-          <View style={styles.simulationTray}>
-            <View style={styles.trayHeaderRow}>
-              <Text style={styles.trayTitle}>Real-Time Vision &amp; Web Grounding</Text>
-              <View style={styles.instantTag}>
-                <Sparkles size={11} color={COLORS.emerald[700]} />
-                <Text style={styles.instantTagText}>Live Gemini Engine</Text>
+                <TouchableOpacity
+                  onPress={() => setCapturedPhotoUri(null)}
+                  disabled={isScanning}
+                  style={styles.retakeButton}
+                  activeOpacity={0.7}
+                >
+                  <RefreshCw size={13} color={COLORS.slate[600]} />
+                  <Text style={styles.retakeButtonText}>Retake Photo</Text>
+                </TouchableOpacity>
               </View>
             </View>
+          ) : (
+            /* LIVE CAMERA STREAM */
+            <>
+              {Platform.OS === 'web' ? (
+                <View style={StyleSheet.absoluteFillObject}>
+                  {/* @ts-ignore */}
+                  <video
+                    ref={webVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                </View>
+              ) : (
+                <CameraView
+                  ref={cameraRef}
+                  style={StyleSheet.absoluteFillObject}
+                  facing={facing}
+                  enableTorch={flashEnabled}
+                />
+              )}
 
-            <View style={styles.guidanceCard}>
-              <Text style={styles.guidanceText}>
-                Point your camera directly at the product packaging or nutrition label and tap the shutter button. EcoLens will read the packaging material and retrieve live sustainability facts from the web.
-              </Text>
+              {/* Centered Framing Reticle */}
+              <View style={styles.centerReticleFrame}>
+                <View style={[styles.cornerBracket, styles.bracketTopLeft]} />
+                <View style={[styles.cornerBracket, styles.bracketTopRight]} />
+                <View style={[styles.cornerBracket, styles.bracketBottomLeft]} />
+                <View style={[styles.cornerBracket, styles.bracketBottomRight]} />
+
+                {/* Animated Laser Beam */}
+                <Animated.View
+                  style={[
+                    styles.scanningLaserBeam,
+                    { transform: [{ translateY }], opacity: scanOpacity },
+                  ]}
+                >
+                  <View style={styles.laserGlow} />
+                </Animated.View>
+
+                <View style={styles.reticleHintBox}>
+                  <Text style={styles.reticleHintTitle}>Fit Product Inside Frame</Text>
+                  <Text style={styles.reticleHintSubtitle}>
+                    Point directly at packaging or front label
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Bottom Floating Shutter Controls */}
+        <View style={styles.bottomControlTray}>
+          {/* Gallery Upload Button */}
+          <TouchableOpacity
+            onPress={handlePickFromGallery}
+            style={styles.traySideButton}
+            activeOpacity={0.8}
+            accessibilityLabel="Upload from gallery"
+          >
+            <View style={styles.traySideIconCircle}>
+              <ImageIcon size={22} color={COLORS.white} strokeWidth={2.2} />
             </View>
-          </View>
+            <Text style={styles.traySideLabel}>Upload</Text>
+          </TouchableOpacity>
+
+          {/* Shutter Button (72px touch target) */}
+          <TouchableOpacity
+            onPress={handleSnapPhoto}
+            disabled={isScanning || !!capturedPhotoUri}
+            style={[
+              styles.shutterButtonOuter,
+              (isScanning || !!capturedPhotoUri) && styles.shutterButtonDisabled,
+            ]}
+            activeOpacity={0.85}
+            accessibilityLabel="Capture photo"
+          >
+            <View style={styles.shutterButtonInner}>
+              {isScanning ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Camera size={26} color={COLORS.white} strokeWidth={2.5} />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Retake or Instruction Button */}
+          <TouchableOpacity
+            onPress={capturedPhotoUri ? () => setCapturedPhotoUri(null) : toggleCameraFacing}
+            style={styles.traySideButton}
+            activeOpacity={0.8}
+            accessibilityLabel="Flip camera"
+          >
+            <View style={styles.traySideIconCircle}>
+              {capturedPhotoUri ? (
+                <RefreshCw size={20} color={COLORS.white} />
+              ) : (
+                <SwitchCamera size={20} color={COLORS.white} />
+              )}
+            </View>
+            <Text style={styles.traySideLabel}>
+              {capturedPhotoUri ? 'Retake' : 'Flip'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -433,126 +468,176 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  fullScreenContainer: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'flex-end',
+    backgroundColor: '#0a0f1d',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
   },
-  modalContainer: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: '94%',
-    borderWidth: 1,
-    borderColor: COLORS.slate[200],
-    overflow: 'hidden',
-    ...SHADOWS.card,
-  },
-  dragPill: {
-    width: 44,
-    height: 4.5,
-    borderRadius: 3,
-    backgroundColor: COLORS.slate[300],
-    alignSelf: 'center',
-    marginTop: 10,
-  },
-  modalHeader: {
+  topAppBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 48 : 24,
+    left: 0,
+    right: 0,
+    zIndex: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.slate[100],
+    paddingHorizontal: 16,
   },
-  headerTitleGroup: {
+  circleActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
+    gap: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
   },
-  cameraIconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: COLORS.emerald[100],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 15.5,
+  headerTitleText: {
+    fontSize: 13,
     fontWeight: '800',
-    color: COLORS.slate[900],
-    letterSpacing: -0.3,
+    color: COLORS.white,
+    letterSpacing: 0.3,
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: COLORS.slate[500],
-    marginTop: 1,
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.slate[100],
+  headerRightActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
   },
   viewfinderCanvas: {
-    height: 250,
-    backgroundColor: COLORS.slate[900],
-    flexDirection: 'column',
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#0a0f1d',
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
   },
-  centerFrame: {
-    width: 260,
-    height: 150,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(16, 185, 129, 0.45)',
+  capturedPhotoPreview: {
+    width: '100%',
+    height: '100%',
+  },
+  darkBackdropOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10, 15, 29, 0.45)',
+  },
+  captureSuccessOverlay: {
+    position: 'absolute',
+    bottom: 120,
+    left: 20,
+    right: 20,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    zIndex: 25,
+  },
+  captureSuccessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: COLORS.emerald[400],
+    ...SHADOWS.card,
+  },
+  captureSuccessBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.slate[900],
+  },
+  captureStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  captureStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  retakeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    marginTop: 4,
+  },
+  retakeButtonText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: COLORS.slate[800],
+  },
+  centerReticleFrame: {
+    width: SCREEN_WIDTH * 0.78,
+    height: SCREEN_WIDTH * 0.78,
+    maxWidth: 320,
+    maxHeight: 320,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     position: 'relative',
-    padding: 14,
     overflow: 'hidden',
-    zIndex: 10,
+    paddingBottom: 16,
   },
   cornerBracket: {
     position: 'absolute',
-    width: 18,
-    height: 18,
+    width: 24,
+    height: 24,
     borderColor: COLORS.emerald[400],
   },
   bracketTopLeft: {
-    top: -1.5,
-    left: -1.5,
-    borderTopWidth: 3.5,
-    borderLeftWidth: 3.5,
-    borderTopLeftRadius: 6,
+    top: -1,
+    left: -1,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 8,
   },
   bracketTopRight: {
-    top: -1.5,
-    right: -1.5,
-    borderTopWidth: 3.5,
-    borderRightWidth: 3.5,
-    borderTopRightRadius: 6,
+    top: -1,
+    right: -1,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 8,
   },
   bracketBottomLeft: {
-    bottom: -1.5,
-    left: -1.5,
-    borderBottomWidth: 3.5,
-    borderLeftWidth: 3.5,
-    borderBottomLeftRadius: 6,
+    bottom: -1,
+    left: -1,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 8,
   },
   bracketBottomRight: {
-    bottom: -1.5,
-    right: -1.5,
-    borderBottomWidth: 3.5,
-    borderRightWidth: 3.5,
-    borderBottomRightRadius: 6,
+    bottom: -1,
+    right: -1,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 8,
   },
   scanningLaserBeam: {
     position: 'absolute',
@@ -561,281 +646,133 @@ const styles = StyleSheet.create({
     top: 0,
     height: 3,
     backgroundColor: COLORS.emerald[400],
+    zIndex: 10,
   },
   laserGlow: {
-    height: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.35)',
-    marginTop: -4.5,
+    height: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.4)',
+    marginTop: -6.5,
   },
-  scanningStateBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+  reticleHintBox: {
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.emerald[300],
-    gap: 7,
-    ...SHADOWS.card,
-  },
-  scanningStepText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: COLORS.slate[800],
-    textAlign: 'center',
-  },
-  guidanceBox: {
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
   },
-  guidanceTitle: {
-    fontSize: 13,
+  reticleHintTitle: {
+    fontSize: 12,
     fontWeight: '800',
     color: COLORS.white,
-    textAlign: 'center',
-    letterSpacing: -0.2,
   },
-  guidanceSubtitle: {
-    fontSize: 10.5,
-    color: 'rgba(255, 255, 255, 0.85)',
-    textAlign: 'center',
-    marginTop: 3,
-    lineHeight: 14,
+  reticleHintSubtitle: {
+    fontSize: 10,
+    color: COLORS.slate[300],
+    marginTop: 1,
   },
-  floatingFlipButton: {
+  bottomControlTray: {
     position: 'absolute',
-    top: 14,
-    right: 14,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
-  },
-  cameraFeedBadge: {
-    position: 'absolute',
-    bottom: 10,
+    bottom: Platform.OS === 'ios' ? 36 : 24,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    zIndex: 20,
+    justifyContent: 'space-around',
+    paddingHorizontal: 24,
+    zIndex: 30,
   },
-  livePulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.emerald[400],
-  },
-  cameraFeedText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.white,
-    letterSpacing: 0.2,
-  },
-  permissionBox: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: COLORS.white,
+  traySideButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 28,
-    gap: 10,
+    minWidth: 60,
+    minHeight: 60,
   },
-  permissionIconRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.amber[50],
-    borderWidth: 2,
-    borderColor: COLORS.amber[200],
+  traySideIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
+  },
+  traySideLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  shutterButtonOuter: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 3,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.card,
+  },
+  shutterButtonInner: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: COLORS.emerald[500],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shutterButtonDisabled: {
+    opacity: 0.6,
+  },
+  permissionBox: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderRadius: 24,
+    marginHorizontal: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  permissionIconRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   permissionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: COLORS.slate[900],
+    color: COLORS.white,
+    marginBottom: 6,
     textAlign: 'center',
-    letterSpacing: -0.3,
   },
   permissionSubtitle: {
-    fontSize: 12.5,
-    color: COLORS.slate[500],
+    fontSize: 12,
+    color: COLORS.slate[300],
     textAlign: 'center',
-    lineHeight: 17,
-    marginBottom: 4,
-    maxWidth: 240,
+    lineHeight: 18,
+    marginBottom: 18,
   },
   permissionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: COLORS.emerald[600],
-    paddingHorizontal: 22,
-    paddingVertical: 13,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 14,
-    marginTop: 4,
-    ...SHADOWS.glow,
+    minHeight: 44,
   },
   permissionButtonText: {
     fontSize: 13,
     fontWeight: '800',
     color: COLORS.white,
-    letterSpacing: -0.2,
-  },
-  permissionHint: {
-    fontSize: 11,
-    color: COLORS.slate[400],
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  bottomControlBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.slate[100],
-  },
-  actionPillButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: COLORS.slate[100],
-    borderWidth: 1,
-    borderColor: COLORS.slate[200],
-    minHeight: 44,
-  },
-  actionPillButtonActive: {
-    backgroundColor: COLORS.amber[50],
-    borderColor: COLORS.amber[300],
-  },
-  actionPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.slate[700],
-  },
-  actionPillTextActive: {
-    color: COLORS.amber[900],
-  },
-  shutterButtonOuter: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.emerald[100],
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.emerald[300],
-    ...SHADOWS.glow,
-  },
-  shutterButtonInner: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.emerald[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  simulationTray: {
-    padding: 14,
-    backgroundColor: COLORS.slate[50],
-    maxHeight: 250,
-  },
-  trayHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    paddingHorizontal: 2,
-  },
-  trayTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.slate[700],
-  },
-  instantTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    backgroundColor: COLORS.emerald[100],
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.emerald[200],
-  },
-  instantTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.emerald[800],
-  },
-  guidanceCard: {
-    backgroundColor: COLORS.slate[50],
-    borderWidth: 1,
-    borderColor: COLORS.slate[200],
-    borderRadius: 14,
-    padding: 12,
-  },
-  guidanceText: {
-    fontSize: 12,
-    color: COLORS.slate[600],
-    lineHeight: 17,
-  },
-  samplesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingBottom: 10,
-  },
-  sampleCard: {
-    width: '48.5%',
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.slate[200],
-    borderRadius: 14,
-    padding: 10,
-    justifyContent: 'space-between',
-    minHeight: 52,
-    ...SHADOWS.card,
-  },
-  sampleName: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: COLORS.slate[900],
-  },
-  sampleBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 4,
-  },
-  sampleDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  sampleBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
   },
 });

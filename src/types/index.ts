@@ -70,6 +70,7 @@ export interface PhotoScanResult {
   trafficLight: TrafficLightScore;
   confidence: ConfidenceLevel;
   analysisText: string;
+  analysisBullets?: string[];
   greenwashingWarning?: string | null;
   sustainabilityFacts: string[];
   suggestedSwapId?: string;
@@ -100,6 +101,7 @@ export interface GroundedAuditResult {
   citations?: string[];
   searchQueries: string[];
   rawAnalysis: string;
+  analysisBullets?: string[];
   timestamp: string;
   isFromCache: boolean;
 }

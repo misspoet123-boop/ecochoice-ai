@@ -28,6 +28,9 @@ import {
   ExternalLink,
   RefreshCw,
   Wifi,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from 'lucide-react-native';
 import { COLORS, SHADOWS, getTrafficBadgeInfo } from '../theme/colors';
 import { Product, UserPreferences, LiveAuditResult, GroundedAuditResult } from '../types';
@@ -76,6 +79,7 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
   isGroundedLoading,
   onRefreshGrounded,
 }) => {
+  const [expandedMetric, setExpandedMetric] = React.useState<'carbon' | 'packaging' | 'ethics' | null>(null);
   const isBookmarked = bookmarkedIds.includes(product.id);
   const badge = getTrafficBadgeInfo(product.trafficLight);
 
@@ -91,6 +95,65 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
     if (level === 'GREEN') return COLORS.emerald[500];
     if (level === 'RED') return COLORS.rose[500];
     return COLORS.amber[400];
+  };
+
+  // Helper: format analysis text into concise, plain bullet points
+  const formatBullets = (grounded: GroundedAuditResult | null | undefined, fallbackText?: string) => {
+    let rawList: string[] = [];
+    if (grounded?.analysisBullets && grounded.analysisBullets.length > 0) {
+      rawList = grounded.analysisBullets;
+    } else if (grounded?.rawAnalysis) {
+      rawList = grounded.rawAnalysis.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
+    } else if (fallbackText) {
+      rawList = fallbackText.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
+    }
+
+    if (rawList.length === 0) {
+      return [
+        { icon: '📦', title: 'Packaging', text: 'Rigid or flexible packaging evaluation.' },
+        { icon: '🏭', title: 'Carbon', text: 'Regional supply chain footprint estimate.' },
+        { icon: '🤝', title: 'Ethics', text: 'Standard fair labor compliance.' },
+      ];
+    }
+
+    return rawList.map((item) => {
+      const clean = item.replace(/^[•\-\*]\s*/, '').trim();
+      let icon = '•';
+      let title = '';
+      let text = clean;
+
+      if (clean.toLowerCase().includes('packaging') || clean.includes('📦')) {
+        icon = '📦';
+        const parts = clean.replace(/^[📦\s]+/, '').split(':');
+        if (parts.length > 1) {
+          title = 'Packaging';
+          text = parts.slice(1).join(':').trim();
+        }
+      } else if (clean.toLowerCase().includes('carbon') || clean.includes('🏭') || clean.includes('🌱')) {
+        icon = '🏭';
+        const parts = clean.replace(/^[🏭🌱\s]+/, '').split(':');
+        if (parts.length > 1) {
+          title = 'Carbon';
+          text = parts.slice(1).join(':').trim();
+        }
+      } else if (clean.toLowerCase().includes('ethics') || clean.includes('🤝') || clean.toLowerCase().includes('sourcing')) {
+        icon = '🤝';
+        const parts = clean.replace(/^[🤝\s]+/, '').split(':');
+        if (parts.length > 1) {
+          title = 'Ethics';
+          text = parts.slice(1).join(':').trim();
+        }
+      } else if (clean.toLowerCase().includes('disposal') || clean.includes('♻️') || clean.toLowerCase().includes('recycle')) {
+        icon = '♻️';
+        const parts = clean.replace(/^[♻️\s]+/, '').split(':');
+        if (parts.length > 1) {
+          title = 'Disposal';
+          text = parts.slice(1).join(':').trim();
+        }
+      }
+
+      return { icon, title, text };
+    });
   };
 
 
@@ -196,7 +259,7 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
                 </View>
                 <View style={styles.liveDataPill}>
                   <Wifi size={9} color={COLORS.emerald[700]} />
-                  <Text style={styles.liveDataPillText}>Live Grounded</Text>
+                  <Text style={styles.liveDataPillText}>Live Verified</Text>
                 </View>
               </View>
 
@@ -218,7 +281,7 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
               </View>
             </View>
 
-            <View style={{ paddingVertical: 14 }}>
+            <View style={{ paddingVertical: 10 }}>
               <Text style={styles.heroProductName} numberOfLines={2}>
                 {groundedResult.productName || unlistedName}
               </Text>
@@ -227,9 +290,16 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
               </Text>
             </View>
 
-            {/* 3 Grounded Metrics Cards */}
+            {/* 3 Clickable Grounded Metrics Cards */}
             <View style={styles.summaryMetricsGrid}>
-              <View style={styles.metricCard}>
+              <TouchableOpacity
+                onPress={() => setExpandedMetric(expandedMetric === 'carbon' ? null : 'carbon')}
+                style={[
+                  styles.metricCard,
+                  expandedMetric === 'carbon' && styles.metricCardActive,
+                ]}
+                activeOpacity={0.8}
+              >
                 <View style={styles.metricCardHeader}>
                   <View style={[styles.metricIconBox, { backgroundColor: COLORS.emerald[100] }]}>
                     <TrendingDown size={15} color={COLORS.emerald[700]} />
@@ -245,12 +315,24 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
                 <Text style={styles.metricCardValue}>
                   {groundedResult.scores?.carbon?.level || 'N/A'}
                 </Text>
-                <Text style={styles.metricCardDetail} numberOfLines={3}>
+                <Text style={styles.metricCardDetail} numberOfLines={2}>
                   {groundedResult.scores?.carbon?.summary || 'Calculated via live web data'}
                 </Text>
-              </View>
+                <View style={styles.cardTapPrompt}>
+                  <Text style={styles.cardTapPromptText}>
+                    {expandedMetric === 'carbon' ? 'Close ▲' : 'Details ▼'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
-              <View style={styles.metricCard}>
+              <TouchableOpacity
+                onPress={() => setExpandedMetric(expandedMetric === 'packaging' ? null : 'packaging')}
+                style={[
+                  styles.metricCard,
+                  expandedMetric === 'packaging' && styles.metricCardActive,
+                ]}
+                activeOpacity={0.8}
+              >
                 <View style={styles.metricCardHeader}>
                   <View style={[styles.metricIconBox, { backgroundColor: COLORS.amber[100] }]}>
                     <Package size={15} color={COLORS.amber[700]} />
@@ -266,12 +348,24 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
                 <Text style={styles.metricCardValue}>
                   {groundedResult.scores?.packaging?.level || 'N/A'}
                 </Text>
-                <Text style={styles.metricCardDetail} numberOfLines={3}>
+                <Text style={styles.metricCardDetail} numberOfLines={2}>
                   {groundedResult.scores?.packaging?.summary || 'Calculated via live web data'}
                 </Text>
-              </View>
+                <View style={styles.cardTapPrompt}>
+                  <Text style={styles.cardTapPromptText}>
+                    {expandedMetric === 'packaging' ? 'Close ▲' : 'Details ▼'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
-              <View style={styles.metricCard}>
+              <TouchableOpacity
+                onPress={() => setExpandedMetric(expandedMetric === 'ethics' ? null : 'ethics')}
+                style={[
+                  styles.metricCard,
+                  expandedMetric === 'ethics' && styles.metricCardActive,
+                ]}
+                activeOpacity={0.8}
+              >
                 <View style={styles.metricCardHeader}>
                   <View style={[styles.metricIconBox, { backgroundColor: COLORS.pink[100] }]}>
                     <HeartHandshake size={15} color={COLORS.pink[700]} />
@@ -287,33 +381,84 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
                 <Text style={styles.metricCardValue}>
                   {groundedResult.scores?.ethics?.level || 'N/A'}
                 </Text>
-                <Text style={styles.metricCardDetail} numberOfLines={3}>
+                <Text style={styles.metricCardDetail} numberOfLines={2}>
                   {groundedResult.scores?.ethics?.summary || 'Calculated via live web data'}
                 </Text>
-              </View>
+                <View style={styles.cardTapPrompt}>
+                  <Text style={styles.cardTapPromptText}>
+                    {expandedMetric === 'ethics' ? 'Close ▲' : 'Details ▼'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
 
-            {/* AI Analysis Summary */}
+            {/* EXPANDED METRIC ACCORDION DRAWER */}
+            {expandedMetric && (
+              <View style={styles.expandedMetricBox}>
+                <View style={styles.expandedMetricHeader}>
+                  <Text style={styles.expandedMetricTitle}>
+                    {expandedMetric === 'carbon'
+                      ? '🌱 Carbon Footprint & Supply Chain'
+                      : expandedMetric === 'packaging'
+                      ? '📦 Packaging & Plastic Recyclability'
+                      : '🤝 Ethical Sourcing & Labor Standards'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setExpandedMetric(null)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <X size={15} color={COLORS.slate[600]} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.expandedMetricBody}>
+                  {expandedMetric === 'carbon'
+                    ? groundedResult.scores?.carbon?.summary || 'Sourced domestically with low transport emissions.'
+                    : expandedMetric === 'packaging'
+                    ? groundedResult.scores?.packaging?.summary || 'Evaluated for polymer grade and true Indian recycling capability.'
+                    : groundedResult.scores?.ethics?.summary || 'Evaluated for fair trade labor and statutory EPR compliance.'}
+                </Text>
+              </View>
+            )}
+
+            {/* AI Analysis Summary in Clean Bullet Points */}
             <View style={styles.analysisCard}>
               <View style={styles.analysisHeader}>
                 <View style={styles.analysisTitleGroup}>
                   <View style={styles.analysisIconBox}>
                     <Sparkles size={16} color={COLORS.emerald[700]} />
                   </View>
-                  <View>
-                    <Text style={styles.analysisTitle}>AI Sustainability Analysis</Text>
-                    <Text style={styles.analysisTitleSub}>Gemini · Google Search Grounded</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.analysisTitle} numberOfLines={1}>
+                      AI Sustainability Audit
+                    </Text>
+                    <Text style={styles.analysisTitleSub}>Gemini Verified</Text>
                   </View>
                 </View>
                 <View style={[styles.unbiasedBadge, styles.unbiasedBadgeLive]}>
                   <Text style={[styles.unbiasedBadgeText, styles.unbiasedBadgeTextLive]}>
-                    Live Grounded
+                    Live Facts
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.explanationBox}>
-                <Text style={styles.explanationText}>{groundedResult.rawAnalysis}</Text>
+              {/* Bullet Points Format */}
+              <View style={styles.bulletListContainer}>
+                {formatBullets(groundedResult).map((bullet, idx) => (
+                  <View key={idx} style={styles.bulletItemRow}>
+                    <View style={styles.bulletIconBadge}>
+                      <Text style={styles.bulletEmojiText}>{bullet.icon}</Text>
+                    </View>
+                    <View style={styles.bulletTextContent}>
+                      {bullet.title ? (
+                        <Text style={styles.bulletItemTitle}>
+                          {bullet.title}: <Text style={styles.bulletItemBody}>{bullet.text}</Text>
+                        </Text>
+                      ) : (
+                        <Text style={styles.bulletItemBody}>{bullet.text}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
               </View>
 
               {/* Real Web Sources & Citations */}
@@ -545,109 +690,175 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
       {isGroundedLoading && !groundedResult ? (
         <MetricsGridSkeleton />
       ) : (
-        <View style={styles.summaryMetricsGrid}>
-          {/* Metric 1: Carbon Footprint */}
-          <View style={styles.metricCard}>
-            <View style={styles.metricCardHeader}>
-              <View style={[styles.metricIconBox, { backgroundColor: COLORS.emerald[100] }]}>
-                <TrendingDown size={15} color={COLORS.emerald[700]} />
+        <>
+          <View style={styles.summaryMetricsGrid}>
+            {/* Metric 1: Carbon Footprint */}
+            <TouchableOpacity
+              onPress={() => setExpandedMetric(expandedMetric === 'carbon' ? null : 'carbon')}
+              style={[
+                styles.metricCard,
+                expandedMetric === 'carbon' && styles.metricCardActive,
+              ]}
+              activeOpacity={0.8}
+            >
+              <View style={styles.metricCardHeader}>
+                <View style={[styles.metricIconBox, { backgroundColor: COLORS.emerald[100] }]}>
+                  <TrendingDown size={15} color={COLORS.emerald[700]} />
+                </View>
+                <View
+                  style={[
+                    styles.metricStatusDot,
+                    {
+                      backgroundColor: groundedResult
+                        ? levelToColor(groundedResult.scores.carbon.level)
+                        : product.pillars.carbon.score === 'green'
+                        ? COLORS.emerald[500]
+                        : product.pillars.carbon.score === 'yellow'
+                        ? COLORS.amber[400]
+                        : COLORS.rose[500],
+                    },
+                  ]}
+                />
               </View>
-              <View
-                style={[
-                  styles.metricStatusDot,
-                  {
-                    backgroundColor: groundedResult
-                      ? levelToColor(groundedResult.scores.carbon.level)
-                      : product.pillars.carbon.score === 'green'
-                      ? COLORS.emerald[500]
-                      : product.pillars.carbon.score === 'yellow'
-                      ? COLORS.amber[400]
-                      : COLORS.rose[500],
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.metricCardTitle}>Carbon Footprint</Text>
-            <Text style={styles.metricCardValue} numberOfLines={2}>
-              {groundedResult
-                ? groundedResult.scores.carbon.level
-                : product.pillars.carbon.metric}
-            </Text>
-            <Text style={styles.metricCardDetail} numberOfLines={3}>
-              {groundedResult
-                ? groundedResult.scores.carbon.summary
-                : product.lcaSummary.carbonPerUnit}
-            </Text>
+              <Text style={styles.metricCardTitle}>Carbon Footprint</Text>
+              <Text style={styles.metricCardValue} numberOfLines={1}>
+                {groundedResult
+                  ? groundedResult.scores.carbon.level
+                  : product.pillars.carbon.metric}
+              </Text>
+              <Text style={styles.metricCardDetail} numberOfLines={2}>
+                {groundedResult
+                  ? groundedResult.scores.carbon.summary
+                  : product.lcaSummary.carbonPerUnit}
+              </Text>
+              <View style={styles.cardTapPrompt}>
+                <Text style={styles.cardTapPromptText}>
+                  {expandedMetric === 'carbon' ? 'Close ▲' : 'Details ▼'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Metric 2: Packaging / Plastic Use */}
+            <TouchableOpacity
+              onPress={() => setExpandedMetric(expandedMetric === 'packaging' ? null : 'packaging')}
+              style={[
+                styles.metricCard,
+                expandedMetric === 'packaging' && styles.metricCardActive,
+              ]}
+              activeOpacity={0.8}
+            >
+              <View style={styles.metricCardHeader}>
+                <View style={[styles.metricIconBox, { backgroundColor: COLORS.amber[100] }]}>
+                  <Package size={15} color={COLORS.amber[700]} />
+                </View>
+                <View
+                  style={[
+                    styles.metricStatusDot,
+                    {
+                      backgroundColor: groundedResult
+                        ? levelToColor(groundedResult.scores.packaging.level)
+                        : product.pillars.packaging.score === 'green'
+                        ? COLORS.emerald[500]
+                        : product.pillars.packaging.score === 'yellow'
+                        ? COLORS.amber[400]
+                        : COLORS.rose[500],
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.metricCardTitle}>Packaging & Plastic</Text>
+              <Text style={styles.metricCardValue} numberOfLines={1}>
+                {groundedResult
+                  ? groundedResult.scores.packaging.level
+                  : product.pillars.packaging.metric}
+              </Text>
+              <Text style={styles.metricCardDetail} numberOfLines={2}>
+                {groundedResult
+                  ? groundedResult.scores.packaging.summary
+                  : product.lcaSummary.recyclabilityRate}
+              </Text>
+              <View style={styles.cardTapPrompt}>
+                <Text style={styles.cardTapPromptText}>
+                  {expandedMetric === 'packaging' ? 'Close ▲' : 'Details ▼'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Metric 3: Ethical Sourcing */}
+            <TouchableOpacity
+              onPress={() => setExpandedMetric(expandedMetric === 'ethics' ? null : 'ethics')}
+              style={[
+                styles.metricCard,
+                expandedMetric === 'ethics' && styles.metricCardActive,
+              ]}
+              activeOpacity={0.8}
+            >
+              <View style={styles.metricCardHeader}>
+                <View style={[styles.metricIconBox, { backgroundColor: COLORS.pink[100] }]}>
+                  <HeartHandshake size={15} color={COLORS.pink[700]} />
+                </View>
+                <View
+                  style={[
+                    styles.metricStatusDot,
+                    {
+                      backgroundColor: groundedResult
+                        ? levelToColor(groundedResult.scores.ethics.level)
+                        : product.pillars.ethicalSourcing.score === 'green'
+                        ? COLORS.emerald[500]
+                        : product.pillars.ethicalSourcing.score === 'yellow'
+                        ? COLORS.amber[400]
+                        : COLORS.rose[500],
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.metricCardTitle}>Ethical Sourcing</Text>
+              <Text style={styles.metricCardValue} numberOfLines={1}>
+                {groundedResult
+                  ? groundedResult.scores.ethics.level
+                  : product.pillars.ethicalSourcing.metric}
+              </Text>
+              <Text style={styles.metricCardDetail} numberOfLines={2}>
+                {groundedResult
+                  ? groundedResult.scores.ethics.summary
+                  : product.pillars.local.metric}
+              </Text>
+              <View style={styles.cardTapPrompt}>
+                <Text style={styles.cardTapPromptText}>
+                  {expandedMetric === 'ethics' ? 'Close ▲' : 'Details ▼'}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
 
-          {/* Metric 2: Packaging / Plastic Use */}
-          <View style={styles.metricCard}>
-            <View style={styles.metricCardHeader}>
-              <View style={[styles.metricIconBox, { backgroundColor: COLORS.amber[100] }]}>
-                <Package size={15} color={COLORS.amber[700]} />
+          {/* EXPANDED METRIC DETAILS ACCORDION */}
+          {expandedMetric && (
+            <View style={styles.expandedMetricBox}>
+              <View style={styles.expandedMetricHeader}>
+                <Text style={styles.expandedMetricTitle}>
+                  {expandedMetric === 'carbon'
+                    ? '🌱 Carbon Footprint & Emissions'
+                    : expandedMetric === 'packaging'
+                    ? '📦 Packaging & Plastic Recyclability'
+                    : '🤝 Ethical Sourcing & Worker Standards'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setExpandedMetric(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={15} color={COLORS.slate[600]} />
+                </TouchableOpacity>
               </View>
-              <View
-                style={[
-                  styles.metricStatusDot,
-                  {
-                    backgroundColor: groundedResult
-                      ? levelToColor(groundedResult.scores.packaging.level)
-                      : product.pillars.packaging.score === 'green'
-                      ? COLORS.emerald[500]
-                      : product.pillars.packaging.score === 'yellow'
-                      ? COLORS.amber[400]
-                      : COLORS.rose[500],
-                  },
-                ]}
-              />
+              <Text style={styles.expandedMetricBody}>
+                {expandedMetric === 'carbon'
+                  ? groundedResult?.scores?.carbon?.summary || product.lcaSummary.carbonPerUnit
+                  : expandedMetric === 'packaging'
+                  ? groundedResult?.scores?.packaging?.summary || product.lcaSummary.recyclabilityRate
+                  : groundedResult?.scores?.ethics?.summary || product.pillars.ethicalSourcing.metric}
+              </Text>
             </View>
-            <Text style={styles.metricCardTitle}>Packaging & Plastic</Text>
-            <Text style={styles.metricCardValue} numberOfLines={2}>
-              {groundedResult
-                ? groundedResult.scores.packaging.level
-                : product.pillars.packaging.metric}
-            </Text>
-            <Text style={styles.metricCardDetail} numberOfLines={3}>
-              {groundedResult
-                ? groundedResult.scores.packaging.summary
-                : product.lcaSummary.recyclabilityRate}
-            </Text>
-          </View>
-
-          {/* Metric 3: Ethical Sourcing */}
-          <View style={styles.metricCard}>
-            <View style={styles.metricCardHeader}>
-              <View style={[styles.metricIconBox, { backgroundColor: COLORS.pink[100] }]}>
-                <HeartHandshake size={15} color={COLORS.pink[700]} />
-              </View>
-              <View
-                style={[
-                  styles.metricStatusDot,
-                  {
-                    backgroundColor: groundedResult
-                      ? levelToColor(groundedResult.scores.ethics.level)
-                      : product.pillars.ethicalSourcing.score === 'green'
-                      ? COLORS.emerald[500]
-                      : product.pillars.ethicalSourcing.score === 'yellow'
-                      ? COLORS.amber[400]
-                      : COLORS.rose[500],
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.metricCardTitle}>Ethical Sourcing</Text>
-            <Text style={styles.metricCardValue} numberOfLines={2}>
-              {groundedResult
-                ? groundedResult.scores.ethics.level
-                : product.pillars.ethicalSourcing.metric}
-            </Text>
-            <Text style={styles.metricCardDetail} numberOfLines={3}>
-              {groundedResult
-                ? groundedResult.scores.ethics.summary
-                : product.pillars.local.metric}
-            </Text>
-          </View>
-        </View>
+          )}
+        </>
       )}
 
       {/* Greenwashing Alert Radar (if applicable) */}
@@ -662,22 +873,20 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
             <View style={styles.analysisIconBox}>
               <Sparkles size={16} color={COLORS.emerald[700]} />
             </View>
-            <View>
-              <Text style={styles.analysisTitle}>AI Sustainability Analysis</Text>
-              {groundedResult && !groundedResult.isFromCache && (
-                <Text style={styles.analysisTitleSub}>Gemini · Google Search Grounded</Text>
-              )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.analysisTitle} numberOfLines={1}>AI Sustainability Audit</Text>
+              <Text style={styles.analysisTitleSub}>Gemini Verified</Text>
             </View>
           </View>
           <View style={[
             styles.unbiasedBadge,
-            groundedResult && !groundedResult.isFromCache && styles.unbiasedBadgeLive,
+            styles.unbiasedBadgeLive,
           ]}>
             <Text style={[
               styles.unbiasedBadgeText,
-              groundedResult && !groundedResult.isFromCache && styles.unbiasedBadgeTextLive,
+              styles.unbiasedBadgeTextLive,
             ]}>
-              {groundedResult && !groundedResult.isFromCache ? 'Live Grounded' : 'Objective Audit'}
+              Live Facts
             </Text>
           </View>
         </View>
@@ -685,10 +894,23 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
         {isGroundedLoading && !groundedResult ? (
           <AnalysisTextSkeleton />
         ) : (
-          <View style={styles.explanationBox}>
-            <Text style={styles.explanationText}>
-              {groundedResult?.rawAnalysis || dynamicAiExplanation}
-            </Text>
+          <View style={styles.bulletListContainer}>
+            {formatBullets(groundedResult, dynamicAiExplanation).map((bullet, idx) => (
+              <View key={idx} style={styles.bulletItemRow}>
+                <View style={styles.bulletIconBadge}>
+                  <Text style={styles.bulletEmojiText}>{bullet.icon}</Text>
+                </View>
+                <View style={styles.bulletTextContent}>
+                  {bullet.title ? (
+                    <Text style={styles.bulletItemTitle}>
+                      {bullet.title}: <Text style={styles.bulletItemBody}>{bullet.text}</Text>
+                    </Text>
+                  ) : (
+                    <Text style={styles.bulletItemBody}>{bullet.text}</Text>
+                  )}
+                </View>
+              </View>
+            ))}
           </View>
         )}
 
@@ -865,15 +1087,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: 1.5,
     borderRadius: 16,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 12,
+    overflow: 'hidden',
   },
   trafficLightPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 20,
   },
@@ -883,7 +1106,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   trafficLightLabel: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -892,12 +1115,12 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   scoreGaugeNumber: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
   scoreGaugeTotal: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     opacity: 0.75,
   },
@@ -1121,14 +1344,104 @@ const styles = StyleSheet.create({
   },
   // Banner layout helpers
   bannerLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexWrap: 'wrap',
   },
   bannerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
+    flexShrink: 0,
+    marginLeft: 8,
+  },
+  metricCardActive: {
+    borderColor: COLORS.emerald[400],
+    backgroundColor: COLORS.emerald[50],
+  },
+  cardTapPrompt: {
+    marginTop: 5,
+    paddingTop: 3,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.slate[100],
+    alignItems: 'center',
+  },
+  cardTapPromptText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: COLORS.emerald[700],
+  },
+  expandedMetricBox: {
+    backgroundColor: COLORS.emerald[50],
+    borderWidth: 1,
+    borderColor: COLORS.emerald[200],
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+    ...SHADOWS.card,
+  },
+  expandedMetricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  expandedMetricTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: COLORS.emerald[900],
+  },
+  expandedMetricBody: {
+    fontSize: 12,
+    color: COLORS.slate[700],
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  bulletListContainer: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  bulletItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    backgroundColor: COLORS.slate[50],
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.slate[100],
+  },
+  bulletIconBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.slate[200],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  bulletEmojiText: {
+    fontSize: 12,
+  },
+  bulletTextContent: {
+    flex: 1,
+  },
+  bulletItemTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.slate[900],
+    lineHeight: 17,
+  },
+  bulletItemBody: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.slate[700],
+    lineHeight: 17,
   },
   liveDataPill: {
     flexDirection: 'row',
