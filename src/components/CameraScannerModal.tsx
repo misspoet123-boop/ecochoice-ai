@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import {
   Camera,
   X,
@@ -171,6 +172,52 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     }
   };
 
+  /**
+   * Scales an image to a maximum of 800px width before base64 encoding to achieve sub-3s latency
+   */
+  const scaleImageToMax800 = async (uri: string): Promise<{ uri: string; base64: string }> => {
+    if (Platform.OS === 'web') {
+      return new Promise((resolve) => {
+        const img = new (window as any).Image();
+        img.onload = () => {
+          const maxWidth = 800;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+            resolve({ uri: dataUrl, base64 });
+          } else {
+            resolve({ uri, base64: '' });
+          }
+        };
+        img.onerror = () => resolve({ uri, base64: '' });
+        img.src = uri;
+      });
+    }
+
+    // Native iOS / Android scaling via ImageManipulator
+    const manipResult = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 800 } }],
+      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    );
+
+    return {
+      uri: manipResult.uri,
+      base64: manipResult.base64 || '',
+    };
+  };
+
   // Real Shutter Snap
   const handleSnapPhoto = async () => {
     if (isScanning) return;
@@ -180,27 +227,32 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         if (webVideoRef.current) {
           const video = webVideoRef.current;
           const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 480;
+          const origW = video.videoWidth || 640;
+          const origH = video.videoHeight || 480;
+          const targetW = Math.min(origW, 800);
+          const targetH = Math.round((origH * targetW) / origW);
+          canvas.width = targetW;
+          canvas.height = targetH;
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+            ctx.drawImage(video, 0, 0, targetW, targetH);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
             setCapturedPhotoUri(dataUrl);
-            await processImageAnalysis(dataUrl, dataUrl);
+            await processImageAnalysis(dataUrl, base64);
             return;
           }
         }
       } else if (cameraRef.current) {
-        // High-speed, optimized capture with 0.6 quality for instant upload & crisp visual recognition
+        // Capture photo and scale down to max 800px width for fast upload
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.6,
-          base64: true,
+          quality: 0.7,
           skipProcessing: true,
         });
         if (photo?.uri) {
           setCapturedPhotoUri(photo.uri);
-          await processImageAnalysis(photo.uri, photo.base64);
+          const scaled = await scaleImageToMax800(photo.uri);
+          await processImageAnalysis(scaled.uri, scaled.base64);
           return;
         }
       }
@@ -220,14 +272,15 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.6,
-        base64: true,
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
         setCapturedPhotoUri(asset.uri);
-        await processImageAnalysis(asset.uri, asset.base64 || undefined);
+        // Scale to max 800px width before base64 encoding
+        const scaled = await scaleImageToMax800(asset.uri);
+        await processImageAnalysis(scaled.uri, scaled.base64);
       }
     } catch (err: any) {
       Alert.alert('Gallery Picker', 'Could not open image gallery.');
