@@ -10,12 +10,13 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// Prioritized list of low-latency multimodal models with automatic failover
+// Low-latency lightweight multimodal models prioritizing flash-lite
 const candidateModels = [
-  'gemini-3.7-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-2.5-flash-lite',
   'gemini-3.1-flash-lite',
-  'gemini-3.5-flash',
   'gemini-flash-lite-latest',
+  'gemini-3.7-flash',
 ];
 
 async function auditImage(imagePath) {
@@ -28,24 +29,20 @@ async function auditImage(imagePath) {
   }
 
   const imageBytes = fs.readFileSync(imagePath).toString("base64");
-  const prompt = `
-  You are an environmental packaging auditor. Examine this physical product packaging:
-  1. Identify exact product name and parent brand.
-  2. Detect physical packaging materials (e.g. PET, HDPE, multi-layer plastic film, aluminum, cardboard).
-  3. Estimate packaging recyclability (High/Medium/Low) and explain why based on material separation.
-  4. Estimate relative carbon footprint category (Low/Medium/High).
-  
-  Return strictly valid JSON matching this schema:
-  {
-    "productName": "string",
-    "brand": "string",
-    "packagingMaterials": ["string"],
-    "recyclability": "High" | "Medium" | "Low",
-    "recyclabilityReason": "string",
-    "carbonEstimate": "Low" | "Medium" | "High",
-    "confidenceScore": 0.0 to 1.0
-  }
-  `;
+  const prompt = `You are an environmental packaging auditor. Examine this physical packaging:
+- Identify product and parent brand.
+- Identify primary packaging material.
+- Classify recyclability (High/Medium/Low).
+- Classify carbon footprint (Low/Medium/High).
+
+Return strictly JSON:
+{
+  "product": "string",
+  "brand": "string",
+  "material": "string",
+  "recyclability": "High" | "Medium" | "Low",
+  "carbon": "Low" | "Medium" | "High"
+}`;
 
   let lastError = null;
   for (const modelName of candidateModels) {

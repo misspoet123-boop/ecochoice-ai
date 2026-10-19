@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import auditHandler from './audit';
 
 dotenv.config();
 
@@ -290,6 +291,14 @@ Respond with ONLY valid JSON.`;
 });
 
 /**
+ * POST /api/audit
+ * Sub-3s low-latency packaging audit endpoint with compact schema
+ */
+app.all(['/api/audit', '/api/audit-packaging'], (req: Request, res: Response) => {
+  return auditHandler(req, res);
+});
+
+/**
  * POST /api/scan-photo
  * Endpoint for camera photo uploads. Proxies directly to the multimodal /api/analyze engine.
  */
@@ -301,6 +310,10 @@ app.post('/api/scan-photo', async (req: Request, res: Response) => {
       return res.status(400).json({
         error: 'Product image URI or base64 data is required',
       });
+    }
+
+    if (imageBase64) {
+      return auditHandler(req, res);
     }
 
     const ai = getGenAIClient();
