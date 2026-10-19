@@ -15,6 +15,9 @@ const COMPACT_AUDIT_PROMPT = `You are an environmental packaging auditor. Examin
 - Identify primary packaging material.
 - Classify recyclability (High/Medium/Low).
 - Classify carbon footprint (Low/Medium/High).
+- Determine municipal binColor: "Blue (Dry)" | "Green (Wet)" | "Black (Hazardous/Non-Recyclable)".
+- Provide disposalAction: concise one-sentence action step (e.g., "Separate cap and label, crush bottle, place in Blue Dry Bin").
+- Provide sustainableAlternative: brief sustainable swap if recyclability is Low or Medium (e.g., "Loose grains in cotton produce bags" or "Returnable glass bottle").
 
 Return strictly JSON:
 {
@@ -22,7 +25,10 @@ Return strictly JSON:
   "brand": "string",
   "material": "string",
   "recyclability": "High" | "Medium" | "Low",
-  "carbon": "Low" | "Medium" | "High"
+  "carbon": "Low" | "Medium" | "High",
+  "binColor": "Blue (Dry)" | "Green (Wet)" | "Black (Hazardous/Non-Recyclable)",
+  "disposalAction": "string",
+  "sustainableAlternative": "string"
 }`;
 
 // Initialize Upstash Redis client with graceful fallback
@@ -151,6 +157,28 @@ export default async function handler(req: any, res: any) {
       const isLowCarbon = parsed.carbon === 'Low';
       const isMedCarbon = parsed.carbon === 'Medium';
 
+      const binColor: 'Blue (Dry)' | 'Green (Wet)' | 'Black (Hazardous/Non-Recyclable)' =
+        parsed.binColor ||
+        (isHighRecyclable
+          ? 'Blue (Dry)'
+          : isMedRecyclable
+          ? 'Blue (Dry)'
+          : 'Black (Hazardous/Non-Recyclable)');
+
+      const disposalAction: string =
+        parsed.disposalAction ||
+        (isHighRecyclable
+          ? 'Separate cap and label, crush container, and place in Blue Dry Waste Bin.'
+          : isMedRecyclable
+          ? 'Rinse thoroughly, flatten, and deposit at municipal dry waste collection.'
+          : 'Place in Black Domestic Hazardous/Non-Recyclable Bin.');
+
+      const sustainableAlternative: string =
+        parsed.sustainableAlternative ||
+        (isHighRecyclable
+          ? 'Refillable or bulk package'
+          : 'Returnable glass bottle or loose plastic-free alternative');
+
       let scoreNum = 50;
       if (isHighRecyclable && isLowCarbon) scoreNum = 85;
       else if (isHighRecyclable && isMedCarbon) scoreNum = 75;
@@ -168,8 +196,9 @@ export default async function handler(req: any, res: any) {
       const bullets = [
         `• 📦 Packaging: ${parsed.material} (${parsed.recyclability} recyclability)`,
         `• 🏭 Carbon: ${parsed.carbon} relative carbon lifecycle`,
-        `• 🤝 Ethics: Meets Indian CPCB EPR plastic compliance`,
-        `• ♻️ Disposal: ${isHighRecyclable ? 'Accepted in standard dry-waste recyclers' : isMedRecyclable ? 'Collect separately for composite material recovery' : 'Not accepted in municipal bins; drop at dry waste centre'}`,
+        `• 🗑️ Municipal Bin: ${binColor}`,
+        `• ♻️ Disposal: ${disposalAction}`,
+        ...(sustainableAlternative ? [`• 🌿 Sustainable Swap: ${sustainableAlternative}`] : []),
       ];
 
       const result = {
@@ -178,6 +207,9 @@ export default async function handler(req: any, res: any) {
         material: parsed.material || 'Packaging',
         recyclability: parsed.recyclability || 'Medium',
         carbon: parsed.carbon || 'Medium',
+        binColor,
+        disposalAction,
+        sustainableAlternative,
         // Frontend compatibility fields
         productName: parsed.product || productName || 'Audited Product',
         packagingType: parsed.material || 'Packaging',
@@ -205,6 +237,9 @@ export default async function handler(req: any, res: any) {
           `Primary Material: ${parsed.material}`,
           `Recyclability: ${parsed.recyclability}`,
           `Carbon Lifecycle: ${parsed.carbon}`,
+          `Municipal Bin: ${binColor}`,
+          `Disposal: ${disposalAction}`,
+          ...(sustainableAlternative ? [`Eco Alternative: ${sustainableAlternative}`] : []),
         ],
         citations: [
           'Central Pollution Control Board (CPCB) - Plastic Waste Management Rules',

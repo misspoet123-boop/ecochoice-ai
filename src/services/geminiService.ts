@@ -45,6 +45,9 @@ export const PACKAGING_AUDIT_PROMPT = `You are an environmental packaging audito
 - Identify primary packaging material.
 - Classify recyclability (High/Medium/Low).
 - Classify carbon footprint (Low/Medium/High).
+- Determine municipal binColor: "Blue (Dry)" | "Green (Wet)" | "Black (Hazardous/Non-Recyclable)".
+- Provide disposalAction: concise one-sentence action step (e.g., "Separate cap and label, crush bottle, place in Blue Dry Bin").
+- Provide sustainableAlternative: brief sustainable swap if recyclability is Low or Medium (e.g., "Loose grains in cotton produce bags" or "Returnable glass bottle").
 
 Return strictly JSON:
 {
@@ -52,7 +55,10 @@ Return strictly JSON:
   "brand": "string",
   "material": "string",
   "recyclability": "High" | "Medium" | "Low",
-  "carbon": "Low" | "Medium" | "High"
+  "carbon": "Low" | "Medium" | "High",
+  "binColor": "Blue (Dry)" | "Green (Wet)" | "Black (Hazardous/Non-Recyclable)",
+  "disposalAction": "string",
+  "sustainableAlternative": "string"
 }`;
 
 export interface CompactAuditSchema {
@@ -61,6 +67,9 @@ export interface CompactAuditSchema {
   material: string;
   recyclability: 'High' | 'Medium' | 'Low';
   carbon: 'Low' | 'Medium' | 'High';
+  binColor?: 'Blue (Dry)' | 'Green (Wet)' | 'Black (Hazardous/Non-Recyclable)' | string;
+  disposalAction?: string;
+  sustainableAlternative?: string;
 }
 
 function cleanErrorMessage(rawError: any): string {
@@ -190,12 +199,34 @@ export async function analyzeProductGrounded(
         compact.carbon === 'Low' ? 'GREEN' : compact.carbon === 'Medium' ? 'YELLOW' : 'RED';
       const packagingLevel: 'GREEN' | 'YELLOW' | 'RED' =
         compact.recyclability === 'High' ? 'GREEN' : compact.recyclability === 'Medium' ? 'YELLOW' : 'RED';
+      const binColor =
+        compact.binColor ||
+        (compact.recyclability === 'High'
+          ? 'Blue (Dry)'
+          : compact.recyclability === 'Medium'
+          ? 'Blue (Dry)'
+          : 'Black (Hazardous/Non-Recyclable)');
+
+      const disposalAction =
+        compact.disposalAction ||
+        (compact.recyclability === 'High'
+          ? 'Separate cap and label, crush container, and place in Blue Dry Waste Bin.'
+          : compact.recyclability === 'Medium'
+          ? 'Rinse thoroughly, flatten, and deposit at municipal dry waste collection.'
+          : 'Place in Black Domestic Hazardous/Non-Recyclable Bin.');
+
+      const sustainableAlternative =
+        compact.sustainableAlternative ||
+        (compact.recyclability === 'High'
+          ? 'Refillable or bulk package'
+          : 'Returnable glass bottle or loose plastic-free alternative');
 
       const bullets = [
         `• 📦 Packaging: ${compact.material || 'Packaging'} (${compact.recyclability} recyclability)`,
         `• 🏭 Carbon: ${compact.carbon} relative carbon lifecycle`,
-        `• 🤝 Ethics: Formulated and compliant with Indian CPCB EPR guidelines`,
-        `• ♻️ Disposal: ${compact.recyclability === 'High' ? 'Widely accepted by local recycling streams.' : compact.recyclability === 'Medium' ? 'Collect separately for composite material recovery.' : 'Not accepted in household bins; drop at dry waste centres.'}`,
+        `• 🗑️ Municipal Bin: ${binColor}`,
+        `• ♻️ Disposal: ${disposalAction}`,
+        ...(sustainableAlternative ? [`• 🌿 Sustainable Swap: ${sustainableAlternative}`] : []),
       ];
 
       return {
@@ -203,6 +234,9 @@ export async function analyzeProductGrounded(
         brand: compact.brand || brand || 'Retail Brand',
         overallScore: level,
         overallScoreNum: scoreNum,
+        binColor,
+        disposalAction,
+        sustainableAlternative,
         scores: {
           carbon: {
             level: carbonLevel,
@@ -303,11 +337,34 @@ export async function analyzeProductPhoto(
       const compact = await callDirectGeminiFlashLite(imageBase64, GEMINI_API_KEY);
       const { scoreNum, trafficLight } = scoreFromCompactAudit(compact);
 
+      const binColor =
+        compact.binColor ||
+        (compact.recyclability === 'High'
+          ? 'Blue (Dry)'
+          : compact.recyclability === 'Medium'
+          ? 'Blue (Dry)'
+          : 'Black (Hazardous/Non-Recyclable)');
+
+      const disposalAction =
+        compact.disposalAction ||
+        (compact.recyclability === 'High'
+          ? 'Separate cap and label, crush container, and place in Blue Dry Waste Bin.'
+          : compact.recyclability === 'Medium'
+          ? 'Rinse thoroughly, flatten, and deposit at municipal dry waste collection.'
+          : 'Place in Black Domestic Hazardous/Non-Recyclable Bin.');
+
+      const sustainableAlternative =
+        compact.sustainableAlternative ||
+        (compact.recyclability === 'High'
+          ? 'Refillable or bulk package'
+          : 'Returnable glass bottle or loose plastic-free alternative');
+
       const bullets = [
         `• 📦 Packaging: ${compact.material || 'Packaging'} (${compact.recyclability} recyclability)`,
         `• 🏭 Carbon: ${compact.carbon} relative carbon lifecycle`,
-        `• 🤝 Ethics: Meets national Indian EPR packaging targets`,
-        `• ♻️ Disposal: ${compact.recyclability === 'High' ? 'Widely accepted by local recycling streams.' : compact.recyclability === 'Medium' ? 'Collect separately for composite material recovery.' : 'Not accepted in household bins; drop at dry waste centres.'}`,
+        `• 🗑️ Municipal Bin: ${binColor}`,
+        `• ♻️ Disposal: ${disposalAction}`,
+        ...(sustainableAlternative ? [`• 🌿 Sustainable Swap: ${sustainableAlternative}`] : []),
       ];
 
       return {
@@ -318,12 +375,18 @@ export async function analyzeProductPhoto(
         overallScoreNum: scoreNum,
         trafficLight,
         confidence: 'verified',
+        binColor,
+        disposalAction,
+        sustainableAlternative,
         analysisBullets: bullets,
         analysisText: bullets.join('\n'),
         sustainabilityFacts: [
           `Primary Material: ${compact.material}`,
           `Recyclability: ${compact.recyclability}`,
           `Carbon Lifecycle: ${compact.carbon}`,
+          `Municipal Bin: ${binColor}`,
+          `Disposal: ${disposalAction}`,
+          ...(sustainableAlternative ? [`Eco Swap: ${sustainableAlternative}`] : []),
         ],
         citations: [
           'Central Pollution Control Board (CPCB) - Plastic Waste Management Rules',

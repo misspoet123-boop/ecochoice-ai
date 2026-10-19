@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Trash2,
 } from 'lucide-react-native';
 import { COLORS, SHADOWS, getTrafficBadgeInfo } from '../theme/colors';
 import { Product, UserPreferences, LiveAuditResult, GroundedAuditResult } from '../types';
@@ -136,6 +137,27 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
           title = 'Carbon';
           text = parts.slice(1).join(':').trim();
         }
+      } else if (clean.toLowerCase().includes('bin') || clean.includes('🗑️') || clean.toLowerCase().includes('municipal')) {
+        icon = '🗑️';
+        const parts = clean.replace(/^[🗑️\s]+/, '').split(':');
+        if (parts.length > 1) {
+          title = 'Municipal Bin';
+          text = parts.slice(1).join(':').trim();
+        }
+      } else if (clean.toLowerCase().includes('disposal') || clean.includes('♻️') || clean.toLowerCase().includes('recycle')) {
+        icon = '♻️';
+        const parts = clean.replace(/^[♻️\s]+/, '').split(':');
+        if (parts.length > 1) {
+          title = 'Disposal Action';
+          text = parts.slice(1).join(':').trim();
+        }
+      } else if (clean.toLowerCase().includes('swap') || clean.includes('🌿') || clean.toLowerCase().includes('alternative')) {
+        icon = '🌿';
+        const parts = clean.replace(/^[🌿\s]+/, '').split(':');
+        if (parts.length > 1) {
+          title = 'Sustainable Swap';
+          text = parts.slice(1).join(':').trim();
+        }
       } else if (clean.toLowerCase().includes('ethics') || clean.includes('🤝') || clean.toLowerCase().includes('sourcing')) {
         icon = '🤝';
         const parts = clean.replace(/^[🤝\s]+/, '').split(':');
@@ -143,17 +165,60 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
           title = 'Ethics';
           text = parts.slice(1).join(':').trim();
         }
-      } else if (clean.toLowerCase().includes('disposal') || clean.includes('♻️') || clean.toLowerCase().includes('recycle')) {
-        icon = '♻️';
-        const parts = clean.replace(/^[♻️\s]+/, '').split(':');
-        if (parts.length > 1) {
-          title = 'Disposal';
-          text = parts.slice(1).join(':').trim();
-        }
       }
 
       return { icon, title, text };
     });
+  };
+
+  const ActionableDisposalCard: React.FC<{
+    binColor?: string;
+    disposalAction?: string;
+    sustainableAlternative?: string;
+  }> = ({ binColor, disposalAction, sustainableAlternative }) => {
+    if (!binColor && !disposalAction && !sustainableAlternative) return null;
+
+    const isBlue = binColor?.toLowerCase().includes('blue');
+    const isGreen = binColor?.toLowerCase().includes('green');
+    const binBg = isBlue ? '#EFF6FF' : isGreen ? '#F0FDF4' : '#F8FAFC';
+    const binBorder = isBlue ? '#BFDBFE' : isGreen ? '#BBF7D0' : '#CBD5E1';
+    const binTextColor = isBlue ? '#1D4ED8' : isGreen ? '#15803D' : '#334155';
+
+    return (
+      <View style={styles.actionableCardContainer}>
+        {(binColor || disposalAction) && (
+          <View style={styles.actionableSectionBox}>
+            <View style={styles.actionableHeaderRow}>
+              <View style={[styles.actionablePill, { backgroundColor: binBg, borderColor: binBorder }]}>
+                <Trash2 size={12} color={binTextColor} />
+                <Text style={[styles.actionablePillText, { color: binTextColor }]}>
+                  {binColor || 'Blue (Dry)'}
+                </Text>
+              </View>
+              <Text style={styles.actionableHeaderTitle}>Municipal Bin Routing</Text>
+            </View>
+            {disposalAction && (
+              <Text style={styles.actionableBodyText}>{disposalAction}</Text>
+            )}
+          </View>
+        )}
+
+        {sustainableAlternative && (
+          <View style={[styles.actionableSectionBox, styles.actionableSwapBox]}>
+            <View style={styles.actionableHeaderRow}>
+              <View style={[styles.actionablePill, styles.swapPill]}>
+                <Leaf size={12} color={COLORS.emerald[700]} />
+                <Text style={[styles.actionablePillText, { color: COLORS.emerald[800] }]}>
+                  Eco Swap
+                </Text>
+              </View>
+              <Text style={styles.actionableHeaderTitle}>Sustainable Alternative</Text>
+            </View>
+            <Text style={styles.actionableBodyText}>{sustainableAlternative}</Text>
+          </View>
+        )}
+      </View>
+    );
   };
 
 
@@ -419,6 +484,13 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
                 </Text>
               </View>
             )}
+
+            {/* Actionable Municipal Bin & Sustainable Alternative Card */}
+            <ActionableDisposalCard
+              binColor={groundedResult.binColor}
+              disposalAction={groundedResult.disposalAction}
+              sustainableAlternative={groundedResult.sustainableAlternative}
+            />
 
             {/* AI Analysis Summary in Clean Bullet Points */}
             <View style={styles.analysisCard}>
@@ -864,6 +936,15 @@ export const AuditScreen: React.FC<AuditScreenProps> = ({
       {/* Greenwashing Alert Radar (if applicable) */}
       {product.greenwashingAlert && (
         <GreenwashingRadar alertText={product.greenwashingAlert} />
+      )}
+
+      {/* Actionable Municipal Bin & Sustainable Swap Card */}
+      {groundedResult && (
+        <ActionableDisposalCard
+          binColor={groundedResult.binColor}
+          disposalAction={groundedResult.disposalAction}
+          sustainableAlternative={groundedResult.sustainableAlternative}
+        />
       )}
 
       {/* AI Sustainability Analysis Card */}
@@ -1664,5 +1745,60 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: COLORS.slate[700],
     lineHeight: 16,
+  },
+  actionableCardContainer: {
+    marginBottom: 14,
+    gap: 10,
+    width: '100%',
+  },
+  actionableSectionBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.slate[200],
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  actionableSwapBox: {
+    borderColor: COLORS.emerald[200],
+    backgroundColor: '#F0FDF4',
+  },
+  actionableHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+    flexWrap: 'wrap',
+  },
+  actionablePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  swapPill: {
+    backgroundColor: COLORS.emerald[100],
+    borderColor: COLORS.emerald[300],
+  },
+  actionablePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  actionableHeaderTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.slate[800],
+  },
+  actionableBodyText: {
+    fontSize: 12,
+    color: COLORS.slate[700],
+    lineHeight: 17,
   },
 });

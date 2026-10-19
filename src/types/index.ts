@@ -76,6 +76,9 @@ export interface PhotoScanResult {
   suggestedSwapId?: string;
   imageUri?: string;
   citations?: string[];
+  binColor?: 'Blue (Dry)' | 'Green (Wet)' | 'Black (Hazardous/Non-Recyclable)' | string;
+  disposalAction?: string;
+  sustainableAlternative?: string;
 }
 
 /**
@@ -104,4 +107,7 @@ export interface GroundedAuditResult {
   analysisBullets?: string[];
   timestamp: string;
   isFromCache: boolean;
+  binColor?: 'Blue (Dry)' | 'Green (Wet)' | 'Black (Hazardous/Non-Recyclable)' | string;
+  disposalAction?: string;
+  sustainableAlternative?: string;
 }

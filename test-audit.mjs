@@ -34,6 +34,9 @@ async function auditImage(imagePath) {
 - Identify primary packaging material.
 - Classify recyclability (High/Medium/Low).
 - Classify carbon footprint (Low/Medium/High).
+- Determine municipal binColor: "Blue (Dry)" | "Green (Wet)" | "Black (Hazardous/Non-Recyclable)".
+- Provide disposalAction: concise one-sentence action step (e.g., "Separate cap and label, crush bottle, place in Blue Dry Bin").
+- Provide sustainableAlternative: brief sustainable swap if recyclability is Low or Medium (e.g., "Loose grains in cotton produce bags" or "Returnable glass bottle").
 
 Return strictly JSON:
 {
@@ -41,7 +44,10 @@ Return strictly JSON:
   "brand": "string",
   "material": "string",
   "recyclability": "High" | "Medium" | "Low",
-  "carbon": "Low" | "Medium" | "High"
+  "carbon": "Low" | "Medium" | "High",
+  "binColor": "Blue (Dry)" | "Green (Wet)" | "Black (Hazardous/Non-Recyclable)",
+  "disposalAction": "string",
+  "sustainableAlternative": "string"
 }`;
 
   let lastError = null;
