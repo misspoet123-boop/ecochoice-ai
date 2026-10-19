@@ -24,7 +24,8 @@
         "buildType": "apk"
       },
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://ecolens-api-nu.vercel.app"
       }
     },
     "production": {
@@ -33,7 +34,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://ecolens-api-nu.vercel.app"
       }
     }
   },
