@@ -1,9 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
+import { Redis } from '@upstash/redis';
 
 // Prioritized low-latency flash-lite models
 const FLASH_MODELS = [
-  'gemini-3.5-flash-lite',
   'gemini-2.5-flash-lite',
+  'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
   'gemini-flash-lite-latest',
   'gemini-3.7-flash',
@@ -24,6 +25,18 @@ Return strictly JSON:
   "carbon": "Low" | "Medium" | "High"
 }`;
 
+// Initialize Upstash Redis client with graceful fallback
+function getRedisClient(): Redis | null {
+  try {
+    if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+      return Redis.fromEnv();
+    }
+  } catch (err) {
+    console.warn('[Upstash Redis] Init failed:', err);
+  }
+  return null;
+}
+
 export default async function handler(req: any, res: any) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -38,11 +51,44 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  const { imageBase64, imageUri, productName, brand } = req.body || {};
+  const { barcode, imageBase64, imageUri, productName, brand } = req.body || {};
 
-  if (!imageBase64 && !imageUri && !productName) {
+  const redis = getRedisClient();
+
+  // 1. Cache-Aside Check: Barcode Cache
+  if (redis && barcode) {
+    try {
+      const cached = await redis.get(`audit:barcode:${barcode}`);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        const parsedCached = typeof cached === 'string' ? JSON.parse(cached) : cached;
+        return res.status(200).json(parsedCached);
+      }
+    } catch (err) {
+      console.warn('[Upstash Redis] Barcode lookup error:', err);
+    }
+  }
+
+  // 2. Cache-Aside Check: Product Name Cache (when no photo provided)
+  if (redis && !imageBase64 && productName) {
+    try {
+      const checkKey = `audit:product:${brand || ''}_${productName}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_');
+      const cached = await redis.get(checkKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        const parsedCached = typeof cached === 'string' ? JSON.parse(cached) : cached;
+        return res.status(200).json(parsedCached);
+      }
+    } catch (err) {
+      console.warn('[Upstash Redis] Product lookup error:', err);
+    }
+  }
+
+  if (!imageBase64 && !imageUri && !productName && !barcode) {
     return res.status(400).json({
-      error: 'Product image (imageBase64) or product name is required.',
+      error: 'Product image (imageBase64), barcode, or product name is required.',
     });
   }
 
@@ -67,8 +113,14 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  const promptText = productName
-    ? `${COMPACT_AUDIT_PROMPT}\nProduct context: ${productName}${brand ? ` by ${brand}` : ''}`
+  const targetDesc = productName
+    ? `${productName}${brand ? ` by ${brand}` : ''}`
+    : barcode
+    ? `Product with barcode: ${barcode}`
+    : '';
+
+  const promptText = targetDesc
+    ? `${COMPACT_AUDIT_PROMPT}\nProduct context: ${targetDesc}`
     : COMPACT_AUDIT_PROMPT;
 
   parts.push({ text: promptText });
@@ -118,7 +170,7 @@ export default async function handler(req: any, res: any) {
         `• ♻️ Disposal: ${isHighRecyclable ? 'Accepted in standard dry-waste recyclers' : isMedRecyclable ? 'Collect separately for composite material recovery' : 'Not accepted in municipal bins; drop at dry waste centre'}`,
       ];
 
-      return res.status(200).json({
+      const result = {
         product: parsed.product || productName || 'Audited Product',
         brand: parsed.brand || brand || 'Identified Brand',
         material: parsed.material || 'Packaging',
@@ -161,7 +213,26 @@ export default async function handler(req: any, res: any) {
           'Indian Institute of Packaging (IIP) - Recyclability Standards',
         ],
         timestamp: new Date().toISOString(),
-      });
+      };
+
+      // 3. Store result in Upstash Redis cache with 30-day TTL (2592000 seconds)
+      if (redis) {
+        try {
+          const normKey = `audit:product:${result.brand}_${result.product}`
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '_');
+          await redis.set(normKey, JSON.stringify(result), { ex: 2592000 });
+
+          if (barcode) {
+            await redis.set(`audit:barcode:${barcode}`, JSON.stringify(result), { ex: 2592000 });
+          }
+        } catch (cacheErr) {
+          console.warn('[Upstash Redis] Cache write error:', cacheErr);
+        }
+      }
+
+      res.setHeader('X-Cache', 'MISS');
+      return res.status(200).json(result);
     } catch (err: any) {
       lastError = err;
       console.warn(`[EcoLens Audit] Model ${model} failed, trying next candidate...`);
