@@ -28,8 +28,10 @@ Return strictly JSON:
 // Initialize Upstash Redis client with graceful fallback
 function getRedisClient(): Redis | null {
   try {
-    if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-      return Redis.fromEnv();
+    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+    if (url && token) {
+      return new Redis({ url, token });
     }
   } catch (err) {
     console.warn('[Upstash Redis] Init failed:', err);
@@ -222,6 +224,13 @@ export default async function handler(req: any, res: any) {
             .toLowerCase()
             .replace(/[^a-z0-9]/g, '_');
           await redis.set(normKey, JSON.stringify(result), { ex: 2592000 });
+
+          if (productName) {
+            const incomingKey = `audit:product:${brand || ''}_${productName}`
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, '_');
+            await redis.set(incomingKey, JSON.stringify(result), { ex: 2592000 });
+          }
 
           if (barcode) {
             await redis.set(`audit:barcode:${barcode}`, JSON.stringify(result), { ex: 2592000 });
